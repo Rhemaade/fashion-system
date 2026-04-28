@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Intelligent Fashion Design System</title>
+    <meta
+      name="description"
+      content="A high-end, dark UI for an intelligent fashion design system."
+    />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+
+  <body>
+    <div class="bg" aria-hidden="true"></div>
+    <div class="noise" aria-hidden="true"></div>
+
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand__mark" aria-hidden="true"></div>
+        <div class="brand__text">
+          <div class="brand__title">Fashion Intelligence</div>
+          <div class="brand__subtitle">Virtual Outfit Generator</div>
+        </div>
+      </div>
+
+      <div class="status" role="status" aria-live="polite">
+        <span class="status__dot" aria-hidden="true"></span>
+        <span class="status__text">Ready</span>
+      </div>
+    </header>
+
+    <main class="shell">
+      <section class="panel panel--left" aria-labelledby="upload-title">
+        <div class="panel__header">
+          <h2 id="upload-title" class="panel__title">Upload Sketch</h2>
+          <p class="panel__hint">Drag & drop or browse a file.</p>
+        </div>
+
+        <form class="upload" action="#" method="post">
+          <label class="dropzone" id="dropzone" for="sketch-file">
+            <div class="dropzone__glow" aria-hidden="true"></div>
+            <img
+              id="upload-preview"
+              class="dropzone__preview"
+              alt="Selected sketch preview"
+              hidden
+            />
+            <div class="dropzone__content">
+              <div class="dropzone__icon" aria-hidden="true">
+                <svg
+                  width="26"
+                  height="26"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M12 16V6"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                    stroke-linecap="round"
+                  />
+                  <path
+                    d="M8 9.5L12 5.5L16 9.5"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                  <path
+                    d="M5 18.5C4.2 18.5 3.5 17.8 3.5 17V14.5C3.5 13.7 4.2 13 5 13H7"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                    stroke-linecap="round"
+                  />
+                  <path
+                    d="M19 18.5C19.8 18.5 20.5 17.8 20.5 17V14.5C20.5 13.7 19.8 13 19 13H17"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                    stroke-linecap="round"
+                  />
+                  <path
+                    d="M7 20.5H17"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                    stroke-linecap="round"
+                  />
+                </svg>
+              </div>
+
+              <div class="dropzone__title">Drop your sketch here</div>
+              <div class="dropzone__meta">
+                PNG, JPG, or PDF • up to 20MB
+              </div>
+
+              <div class="dropzone__actions">
+                <span class="chip">Browse files</span>
+                <span class="chip chip--muted">or drag & drop</span>
+              </div>
+            </div>
+          </label>
+          <input
+            id="sketch-file"
+            class="file"
+            type="file"
+            name="sketch"
+            accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf"
+          />
+
+          <div class="upload__footer">
+            <div class="kv">
+              <div class="kv__k">Tip</div>
+              <div class="kv__v">Best results with clean line art.</div>
+            </div>
+            <button
+              id="clear-upload"
+              class="ghost"
+              type="button"
+              aria-label="Clear upload"
+            >
+              Clear
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel panel--center" aria-labelledby="generate-title">
+        <div class="panel__header">
+          <h2 id="generate-title" class="panel__title">Generate</h2>
+          <p class="panel__hint">
+            Turn your sketch into a high-fidelity virtual outfit.
+          </p>
+        </div>
+
+        <div class="center">
+          <div class="center__card">
+            <div class="badge" aria-hidden="true">
+              <span class="badge__dot"></span> AI Studio
+            </div>
+
+            <h3 class="hero">
+              Create a premium virtual look from your sketch
+            </h3>
+            <p class="sub">
+              Upload a fashion sketch on the left, then generate a refined
+              outfit preview.
+            </p>
+
+            <button id="generate" class="cta" type="button">
+              <span class="cta__shine" aria-hidden="true"></span>
+              <span class="cta__text">Generate Virtual Outfit</span>
+              <span class="cta__icon" aria-hidden="true">
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M7 17L17 7"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                  />
+                  <path
+                    d="M10 7H17V14"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </span>
+            </button>
+
+            <div class="center__meta">
+              <div class="pill">
+                <span class="pill__label">Mode</span>
+                <span class="pill__value">Dark • High Contrast</span>
+              </div>
+              <div class="pill pill--muted">
+                <span class="pill__label">Output</span>
+                <span class="pill__value">AI Image Preview</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="fineprint">
+            By generating, you agree to store the result locally in your session.
+          </div>
+        </div>
+      </section>
+
+      <section class="panel panel--right" aria-labelledby="preview-title">
+        <div class="panel__header">
+          <h2 id="preview-title" class="panel__title">Final AI Image</h2>
+          <p class="panel__hint">Your generated outfit will appear here.</p>
+        </div>
+
+        <div class="preview" role="img" aria-label="AI image preview window">
+          <div class="preview__frame">
+            <div class="preview__grid" aria-hidden="true"></div>
+            <img
+              id="final-image"
+              class="preview__img"
+              alt="Final generated outfit"
+              hidden
+            />
+            <div id="preview-empty" class="preview__empty">
+              <div class="preview__emptyIcon" aria-hidden="true"></div>
+              <div class="preview__emptyTitle">Blank display window</div>
+              <div class="preview__emptyMeta">
+                Output preview will render here after generation.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="preview__footer">
+          <div class="kv">
+            <div class="kv__k">Resolution</div>
+            <div id="final-resolution" class="kv__v">—</div>
+          </div>
+          <button id="download" class="ghost" type="button" disabled>
+            Download
+          </button>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>© <span id="year"></span> Fashion Intelligence</span>
+      <span class="footer__sep" aria-hidden="true">•</span>
+      <span class="footer__muted">Concept UI (front-end only)</span>
+    </footer>
+
+    <script>
+      document.getElementById("year").textContent = new Date().getFullYear();
+
+      const WEBHOOK_URL =
+        "https://hook.us2.make.com/14er3ntj70fvfx834qk7s9cu3qiw05qv";
+
+      const dropzone = document.getElementById("dropzone");
+      const fileInput = document.getElementById("sketch-file");
+      const clearBtn = document.getElementById("clear-upload");
+      const generateBtn = document.getElementById("generate");
+      const generateBtnText = generateBtn.querySelector(".cta__text");
+
+      const uploadPreviewImg = document.getElementById("upload-preview");
+      const previewEmpty = document.getElementById("preview-empty");
+      const finalImg = document.getElementById("final-image");
+      const finalResolution = document.getElementById("final-resolution");
+      const downloadBtn = document.getElementById("download");
+
+      const statusText = document.querySelector(".status__text");
+
+      let selectedFile = null;
+      let selectedFileObjectUrl = null;
+
+      function setStatus(message) {
+        if (!statusText) return;
+        statusText.textContent = message;
+      }
+
+      function revokeSelectedPreviewUrl() {
+        if (selectedFileObjectUrl) {
+          URL.revokeObjectURL(selectedFileObjectUrl);
+          selectedFileObjectUrl = null;
+        }
+      }
+
+      function clearUpload() {
+        revokeSelectedPreviewUrl();
+        selectedFile = null;
+        fileInput.value = "";
+        uploadPreviewImg.hidden = true;
+        uploadPreviewImg.removeAttribute("src");
+        dropzone.classList.remove("is-dragover", "has-preview");
+        setStatus("Ready");
+      }
+
+      function setUploadFile(file) {
+        if (!file) return;
+
+        selectedFile = file;
+        setStatus(`Selected: ${file.name}`);
+
+        // Preview only if it's an image.
+        if (file.type && file.type.startsWith("image/")) {
+          revokeSelectedPreviewUrl();
+          selectedFileObjectUrl = URL.createObjectURL(file);
+          uploadPreviewImg.src = selectedFileObjectUrl;
+          uploadPreviewImg.hidden = false;
+          dropzone.classList.add("has-preview");
+        } else {
+          // Non-image (e.g., PDF): keep UI as-is, but still allow sending.
+          uploadPreviewImg.hidden = true;
+          uploadPreviewImg.removeAttribute("src");
+          dropzone.classList.remove("has-preview");
+        }
+      }
+
+      function extractImageUrl(payload) {
+        if (!payload) return null;
+
+        // Plain string response may be a URL or contain one.
+        if (typeof payload === "string") {
+          const urlMatch = payload.match(/https?:\/\/[^\s"'<>]+/i);
+          return urlMatch ? urlMatch[0] : null;
+        }
+
+        // Common JSON shapes
+        const candidates = [
+          payload.imageUrl,
+          payload.imageURL,
+          payload.image_url,
+          payload.url,
+          payload.result,
+          payload.output,
+          payload.data?.imageUrl,
+          payload.data?.url,
+          payload.data?.image_url,
+        ].filter(Boolean);
+
+        for (const c of candidates) {
+          const u = extractImageUrl(c);
+          if (u) return u;
+        }
+
+        // Sometimes returned as first element of an array.
+        if (Array.isArray(payload) && payload.length) {
+          for (const item of payload) {
+            const u = extractImageUrl(item);
+            if (u) return u;
+          }
+        }
+
+        return null;
+      }
+
+      async function postToWebhook(file) {
+        const form = new FormData();
+        form.append("sketch", file, file.name);
+        form.append("filename", file.name);
+        form.append("mimeType", file.type || "");
+
+        const res = await fetch(WEBHOOK_URL, {
+          method: "POST",
+          body: form,
+        });
+
+        const contentType = res.headers.get("content-type") || "";
+        let payload;
+        if (contentType.includes("application/json")) {
+          payload = await res.json().catch(() => null);
+        } else {
+          payload = await res.text().catch(() => "");
+        }
+
+        if (!res.ok) {
+          const details =
+            typeof payload === "string"
+              ? payload.slice(0, 200)
+              : JSON.stringify(payload)?.slice(0, 200);
+          throw new Error(
+            `Webhook error (${res.status}): ${details || "Unknown error"}`
+          );
+        }
+
+        return payload;
+      }
+
+      function setFinalImage(url) {
+        finalImg.hidden = false;
+        finalImg.src = url;
+        previewEmpty.hidden = true;
+        downloadBtn.disabled = false;
+
+        finalImg.onload = () => {
+          finalResolution.textContent = `${finalImg.naturalWidth} × ${finalImg.naturalHeight}`;
+        };
+        finalImg.onerror = () => {
+          finalResolution.textContent = "—";
+        };
+      }
+
+      // File input
+      fileInput.addEventListener("change", (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (file) setUploadFile(file);
+      });
+
+      // Drag and drop
+      ["dragenter", "dragover"].forEach((evt) => {
+        dropzone.addEventListener(evt, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropzone.classList.add("is-dragover");
+        });
+      });
+      ["dragleave", "dragend", "drop"].forEach((evt) => {
+        dropzone.addEventListener(evt, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropzone.classList.remove("is-dragover");
+        });
+      });
+      dropzone.addEventListener("drop", (e) => {
+        const file = e.dataTransfer?.files?.[0];
+        if (!file) return;
+        fileInput.files = e.dataTransfer.files;
+        setUploadFile(file);
+      });
+
+      // Clear
+      clearBtn.addEventListener("click", () => {
+        clearUpload();
+      });
+
+      // Generate
+      generateBtn.addEventListener("click", async () => {
+        if (!selectedFile) {
+          setStatus("Select a sketch first");
+          dropzone.scrollIntoView({ behavior: "smooth", block: "center" });
+          return;
+        }
+
+        const originalText = generateBtnText.textContent;
+        generateBtnText.textContent = "Generating...";
+        generateBtn.disabled = true;
+        setStatus("Generating…");
+
+        try {
+          const payload = await postToWebhook(selectedFile);
+          const imageUrl = extractImageUrl(payload);
+
+          if (!imageUrl) {
+            throw new Error(
+              "Webhook success response did not include an image URL."
+            );
+          }
+
+          setFinalImage(imageUrl);
+          setStatus("Done");
+        } catch (err) {
+          console.error(err);
+          setStatus("Error");
+          alert(err?.message || "Something went wrong while generating.");
+        } finally {
+          generateBtnText.textContent = originalText;
+          generateBtn.disabled = false;
+        }
+      });
+
+      // Download
+      downloadBtn.addEventListener("click", async () => {
+        const url = finalImg?.src;
+        if (!url) return;
+
+        // Best-effort: open in new tab (avoids CORS download issues)
+        window.open(url, "_blank", "noopener,noreferrer");
+      });
+    </script>
+  </body>
+</html>
