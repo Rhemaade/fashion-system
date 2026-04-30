@@ -37,6 +37,7 @@ model Generation {
   prompt_text  String
   texture_url  String?
   render_url   String?
+  outfit_config Json?
   generated_at DateTime @default(now())
   user         User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
   avatar       Avatar?  @relation(fields: [avatar_id], references: [id], onDelete: SetNull)

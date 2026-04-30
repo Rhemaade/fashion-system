@@ -1,156 +1,303 @@
-import { useState, useEffect } from 'react';
-import ThreeModel from '../components/ThreeModel';
-import { mapMeasurementsToDescriptor } from '../utils/logicMapper';
-import { useAuth } from '../contexts/AuthContext';
+import { useEffect, useState } from 'react';
 import axios from 'axios';
+import ThreeModel from '../components/ThreeModel';
+import { buildMeasurementProfile } from '../utils/logicMapper';
+import { useAuth } from '../contexts/AuthContext';
+
+const measurementFields = [
+  { key: 'height', label: 'Height', unit: 'cm', min: 140, max: 220 },
+  { key: 'neck', label: 'Neck', unit: 'in', min: 10, max: 24 },
+  { key: 'shoulders', label: 'Shoulders', unit: 'in', min: 12, max: 28 },
+  { key: 'chest', label: 'Chest/Bust', unit: 'in', min: 24, max: 70 },
+  { key: 'waist', label: 'Waist', unit: 'in', min: 18, max: 60 },
+  { key: 'hips', label: 'Hips', unit: 'in', min: 24, max: 70 },
+  { key: 'inseam', label: 'Inseam', unit: 'in', min: 20, max: 40 },
+  { key: 'sleeve', label: 'Sleeve', unit: 'in', min: 18, max: 32 },
+];
+
+const defaultMeasurements = {
+  height: 170,
+  neck: 14,
+  shoulders: 17,
+  chest: 38,
+  waist: 30,
+  hips: 40,
+  inseam: 31,
+  sleeve: 24,
+};
+
+
+
+function HistoryCard({ item, isActive, onSelect }) {
+  const config = item.outfit_config;
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`rounded-xl border p-4 text-left transition-all ${
+        isActive ? 'border-stone-900 bg-stone-900 text-white shadow-lg' : 'border-stone-200 bg-white hover:border-stone-400'
+      }`}
+    >
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <p className="text-sm font-semibold">{config?.label || 'Saved Look'}</p>
+          <p className={`text-xs ${isActive ? 'text-stone-300' : 'text-stone-500'}`}>{config?.silhouette || 'tailored'} silhouette</p>
+        </div>
+        <div className="flex gap-2">
+          <span className="h-5 w-5 rounded-full border border-black/10" style={{ backgroundColor: config?.primaryColor || '#d6d3d1' }} />
+          <span className="h-5 w-5 rounded-full border border-black/10" style={{ backgroundColor: config?.accentColor || '#f8fafc' }} />
+        </div>
+      </div>
+      <p className={`mt-3 text-xs leading-5 ${isActive ? 'text-stone-200' : 'text-stone-600'}`}>{item.prompt_text}</p>
+    </button>
+  );
+}
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const [measurements, setMeasurements] = useState({ height: 170, waist: 30, hips: 40 });
+  const [measurements, setMeasurements] = useState(defaultMeasurements);
   const [prompt, setPrompt] = useState('');
-  const [descriptor, setDescriptor] = useState('Hourglass');
-  
-  // State for AI Generation
+  const [descriptor, setDescriptor] = useState('');
+  const [fitSummary, setFitSummary] = useState('balanced proportions');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [activeTexture, setActiveTexture] = useState(null);
   const [history, setHistory] = useState([]);
+  const [activeGenerationId, setActiveGenerationId] = useState(null);
+  const [activeOutfitConfig, setActiveOutfitConfig] = useState(null);
+  const [activeModelUrl, setActiveModelUrl] = useState(null);
+  const [sketchImage, setSketchImage] = useState(null);
 
   useEffect(() => {
-    // Initial fetch of user history
-    if (user?.token) {
-      axios.get('/designs')
-        .then(res => {
-          if (res.data?.data) {
-            setHistory(res.data.data);
-          }
-        })
-        .catch(err => console.error("Failed fetching history:", err));
-    }
+    const profile = buildMeasurementProfile(measurements);
+    setFitSummary(profile.fitSummary);
+  }, [measurements]);
+
+  useEffect(() => {
+    if (!user?.token) return;
+
+    if (!user?.token) return;
+
+    axios.get('/designs')
+      .then((res) => {
+        const records = res.data?.data || [];
+        setHistory(records);
+        if (records.length > 0) {
+          setActiveGenerationId(records[0].id);
+          setActiveOutfitConfig(records[0].outfit_config);
+          setActiveModelUrl(records[0].render_url);
+        }
+      })
+      .catch((error) => console.error('Failed fetching history:', error));
   }, [user]);
 
-  const handleUpdate = () => {
-    const shape = mapMeasurementsToDescriptor(measurements.height, measurements.waist, measurements.hips);
-    setDescriptor(shape);
+  const updateMeasurement = (key, value) => {
+    setMeasurements((current) => ({
+      ...current,
+      [key]: value === '' ? '' : Number(value),
+    }));
+  };
+
+  const handleImageUpload = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setSketchImage(reader.result);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setSketchImage(null);
+    }
   };
 
   const handleGenerate = async () => {
-    if (!prompt) return alert('Please enter a design prompt!');
+    if (!prompt.trim()) {
+      alert('Please describe the garment you want to preview.');
+      return;
+    }
+
     setIsGenerating(true);
-    
-    console.log(`Generating design: "${prompt}" for "${descriptor}"`);
-    
+
     try {
-      const res = await axios.post('/designs/generate', {
-        prompt: prompt,
-        descriptor: descriptor
+      const response = await axios.post('/designs/generate', {
+        prompt,
+        descriptor,
+        measurements,
+        image: sketchImage,
       });
 
-      const generatedDesign = res.data.data;
-      
-      setActiveTexture(generatedDesign.texture_url);
-      setHistory(prev => [generatedDesign, ...prev]);
-
+      const generation = response.data.data;
+      setHistory((current) => [generation, ...current]);
+      setActiveGenerationId(generation.id);
+      setActiveOutfitConfig(generation.outfit_config);
+      setActiveModelUrl(generation.render_url);
     } catch (error) {
       console.error(error);
-      alert("Failed to generate design: " + (error.response?.data?.error || error.message));
+      alert(error.response?.data?.error || 'Failed to build try-on preview.');
     } finally {
       setIsGenerating(false);
     }
   };
 
+  const selectHistoryItem = (item) => {
+    setActiveGenerationId(item.id);
+    setActiveOutfitConfig(item.outfit_config);
+    setActiveModelUrl(item.render_url);
+  };
+
+
+
   return (
-    <div className="min-h-screen bg-gray-100 p-8">
-      <header className="mb-8 flex justify-between items-center">
+    <div className="min-h-screen bg-[#f3efe7] px-4 py-6 md:px-8">
+      <header className="mb-8 flex flex-col gap-4 rounded-3xl border border-stone-200 bg-white px-6 py-5 shadow-sm md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800">Virtual Atelier</h1>
-          <p className="text-gray-600">Intelligent Fashion Design System</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-stone-500">RHEMS UNISEX MVP</p>
+          <h1 className="mt-2 text-3xl font-bold text-stone-900">3D Try-On Studio</h1>
+          <p className="mt-2 max-w-2xl text-sm text-stone-600">
+            Measurements drive a neutral avatar form. The prompt resolves into a local garment configuration for a unisex 3D try-on preview.
+          </p>
         </div>
-        <div className="text-sm font-medium text-gray-500">
-          User ID: {user?.id}
+        <div className="rounded-2xl bg-stone-900 px-4 py-3 text-sm text-stone-100">
+          <div className="font-semibold">Signed in</div>
+          <div className="mt-1 text-xs text-stone-300">{user?.id}</div>
         </div>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-1 space-y-6">
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <h2 className="text-xl font-semibold mb-4">Body Parameters</h2>
-            <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
+        <aside className="space-y-6">
+          <section className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
               <div>
-                <label className="block text-sm font-medium">Height (cm): {measurements.height}</label>
-                <input type="range" min="140" max="220" value={measurements.height} onChange={(e) => setMeasurements({ ...measurements, height: Number(e.target.value) })} className="w-full" onBlur={handleUpdate} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium">Waist (inches): {measurements.waist}</label>
-                <input type="range" min="20" max="50" value={measurements.waist} onChange={(e) => setMeasurements({ ...measurements, waist: Number(e.target.value) })} className="w-full" onBlur={handleUpdate} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium">Hips (inches): {measurements.hips}</label>
-                <input type="range" min="30" max="60" value={measurements.hips} onChange={(e) => setMeasurements({ ...measurements, hips: Number(e.target.value) })} className="w-full" onBlur={handleUpdate} />
-              </div>
-              <div className="pt-2">
-                <span className="text-sm text-gray-500">Semantic Shape: </span>
-                <span className="font-bold text-indigo-600">{descriptor}</span>
+                <h2 className="text-xl font-semibold text-stone-900">Body Measurements</h2>
+                <p className="mt-1 text-sm text-stone-500">These values shape the base avatar proportions without requiring a gender-specific pipeline.</p>
               </div>
             </div>
-          </div>
 
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <h2 className="text-xl font-semibold mb-4">Fashion Prompt</h2>
-            <textarea 
-              className="w-full border rounded-md p-3 h-24 resize-none" 
-              placeholder="e.g. Cyberpunk trench coat with neon blue highlights..."
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              disabled={isGenerating}
-            />
-            <button 
+            <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-1">
+              {measurementFields.map((field) => (
+                <label key={field.key} className="block">
+                  <span className="mb-1 block text-sm font-medium text-stone-700">
+                    {field.label} ({field.unit})
+                  </span>
+                  <input
+                    type="number"
+                    min={field.min}
+                    max={field.max}
+                    value={measurements[field.key]}
+                    onChange={(event) => updateMeasurement(field.key, event.target.value)}
+                    className="w-full rounded-xl border border-stone-300 px-3 py-2 text-sm outline-none transition focus:border-stone-900 focus:ring-2 focus:ring-stone-200"
+                  />
+                </label>
+              ))}
+            </div>
+
+            <div className="mt-5 rounded-2xl bg-stone-100 p-4 text-sm text-stone-700">
+              <div className="font-semibold text-stone-900">Fit notes</div>
+              <p className="mt-2">{fitSummary}</p>
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
+            <h2 className="text-xl font-semibold text-stone-900">Garment Intent</h2>
+            <p className="mt-1 text-sm text-stone-500">Provide a detailed description of the garment and optionally upload a reference sketch.</p>
+
+            <div className="mt-4">
+              <label className="mb-1 block text-sm font-medium text-stone-700">Body Descriptor</label>
+              <input
+                type="text"
+                value={descriptor}
+                onChange={(e) => setDescriptor(e.target.value)}
+                placeholder="e.g. Athletic, Plus Size, Hourglass..."
+                className="w-full rounded-xl border border-stone-300 px-4 py-2 text-sm outline-none transition focus:border-stone-900 focus:ring-2 focus:ring-stone-200"
+              />
+            </div>
+
+            <div className="mt-4">
+              <label className="mb-1 block text-sm font-medium text-stone-700">Garment Prompt</label>
+              <textarea
+                className="h-32 w-full resize-none rounded-2xl border border-stone-300 px-4 py-3 text-sm outline-none transition focus:border-stone-900 focus:ring-2 focus:ring-stone-200"
+                value={prompt}
+                onChange={(event) => setPrompt(event.target.value)}
+                placeholder="e.g. A tailored double-breasted suit jacket in navy blue wool with gold buttons and structured shoulders..."
+              />
+            </div>
+
+            <div className="mt-4">
+              <label className="mb-1 block text-sm font-medium text-stone-700">Optional: Upload a sketch or reference image</label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                className="w-full text-sm text-stone-500 file:mr-4 file:rounded-xl file:border-0 file:bg-stone-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-stone-700 hover:file:bg-stone-200"
+              />
+              {sketchImage && (
+                <div className="mt-3">
+                  <img src={sketchImage} alt="Sketch preview" className="h-24 w-24 rounded-lg object-cover border border-stone-200" />
+                </div>
+              )}
+            </div>
+
+            <button
+              type="button"
               onClick={handleGenerate}
-              disabled={isGenerating || !prompt}
-              className={`mt-4 w-full py-3 rounded-md font-semibold transition-colors flex justify-center items-center gap-2 ${
-                isGenerating ? 'bg-indigo-400 cursor-not-allowed text-white' : 'bg-accent hover:bg-indigo-600 text-white'
-              }`}
+              disabled={isGenerating}
+              className="mt-4 w-full rounded-2xl bg-stone-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-stone-700 disabled:cursor-not-allowed disabled:bg-stone-400"
             >
-              {isGenerating ? (
-                <>
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Rendering AI Design...
-                </>
-              ) : 'Generate 3D Outfit'}
+              {isGenerating ? 'Generating Try-On Configuration...' : 'Generate 3D Try-On Look'}
             </button>
-          </div>
-        </div>
+          </section>
+        </aside>
 
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white p-6 rounded-lg shadow-md">
-             <div className="flex justify-between items-center mb-4">
-               <h2 className="text-xl font-semibold">Live 3D Visualization</h2>
-               {activeTexture && <span className="px-3 py-1 bg-green-100 text-green-800 text-xs font-bold rounded-full border border-green-200">AI Synced</span>}
-             </div>
-             {/* 3D WebGL Canvas */}
-             <ThreeModel activeTexture={activeTexture} />
-          </div>
-
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <h2 className="text-xl font-semibold mb-4">Design History</h2>
-            {history.length > 0 ? (
-              <div className="grid grid-cols-4 gap-4">
-                {history.map((item) => (
-                  <div key={item.id} className="cursor-pointer group relative rounded-md overflow-hidden border" onClick={() => setActiveTexture(item.texture_url)}>
-                    <img src={item.texture_url} alt="History" className="w-full h-24 object-cover group-hover:scale-110 transition-transform" />
-                    <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[10px] p-1 truncate">
-                      {item.prompt_text}
-                    </div>
+        <main className="space-y-6">
+          <section className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
+            <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-stone-900">Live Outfit Preview</h2>
+                <p className="mt-1 text-sm text-stone-500">
+                  This MVP renders a measurement-shaped avatar and a local garment mesh driven by the generated unisex outfit config.
+                </p>
+              </div>
+              {activeOutfitConfig && (
+                <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700">
+                  <div className="font-semibold text-stone-900">{activeOutfitConfig.label}</div>
+                  <div className="mt-1">
+                    {activeOutfitConfig.silhouette} | {activeOutfitConfig.material} | {activeOutfitConfig.sleeveLength}
                   </div>
+                </div>
+              )}
+            </div>
+            <ThreeModel measurements={measurements} outfitConfig={activeOutfitConfig} modelUrl={activeModelUrl} />
+          </section>
+
+          <section className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold text-stone-900">Saved Looks</h2>
+                <p className="mt-1 text-sm text-stone-500">Each saved item stores an outfit config that can be replayed on the current avatar.</p>
+              </div>
+              <div className="text-xs font-semibold uppercase tracking-[0.25em] text-stone-400">
+                {history.length} looks
+              </div>
+            </div>
+
+            {history.length > 0 ? (
+              <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-4">
+                {history.map((item) => (
+                  <HistoryCard
+                    key={item.id}
+                    item={item}
+                    isActive={item.id === activeGenerationId}
+                    onSelect={() => selectHistoryItem(item)}
+                  />
                 ))}
               </div>
             ) : (
-              <p className="text-gray-500 text-sm">No recent designs to show.</p>
+              <div className="mt-4 rounded-2xl border border-dashed border-stone-300 bg-stone-50 p-6 text-sm text-stone-500">
+                No saved looks yet. Generate your first outfit configuration to populate history.
+              </div>
             )}
-          </div>
-        </div>
+          </section>
+        </main>
       </div>
     </div>
   );
