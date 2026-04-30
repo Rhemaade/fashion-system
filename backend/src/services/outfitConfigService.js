@@ -132,30 +132,28 @@ function inferDetailFlags(promptText) {
   };
 }
 
-function buildOutfitConfig({ prompt, descriptor, measurements }) {
-  const baseItem = inferCatalogItem(prompt);
-  const promptColor = inferColor(prompt, COLOR_KEYWORDS, baseItem.color);
-  const accentColor = inferColor(prompt, ACCENT_KEYWORDS, baseItem.accentColor);
-  const silhouette = inferSilhouette(prompt, baseItem.silhouette);
-  const sleeveLength = inferSleeveLength(prompt, baseItem.sleeveLength);
-  const material = inferMaterial(prompt, baseItem.material);
-  const detailFlags = inferDetailFlags(prompt);
+function buildOutfitConfig({ 
+  prompt, descriptor, measurements, 
+  garmentType, silhouette, sleeveLength, material, primaryColor, accentColor, detailFlags 
+}) {
+  const searchString = `${garmentType || ''} ${prompt || ''}`;
+  const baseItem = inferCatalogItem(searchString);
 
   return {
     version: 'mvp-3d-tryon',
     catalogId: baseItem.id,
-    label: baseItem.label,
+    label: garmentType || baseItem.label,
     garmentType: baseItem.garmentType,
-    styleProfile: baseItem.styleProfile,
-    silhouette,
-    sleeveLength,
+    styleProfile: 'unisex-custom',
+    silhouette: silhouette || baseItem.silhouette,
+    sleeveLength: sleeveLength || baseItem.sleeveLength,
     topLength: baseItem.topLength,
     bottomLength: baseItem.bottomLength,
-    material,
-    primaryColor: promptColor,
-    accentColor,
+    material: material || baseItem.material,
+    primaryColor: primaryColor || baseItem.color,
+    accentColor: accentColor || baseItem.accentColor,
     bodyDescriptor: descriptor,
-    detailFlags,
+    detailFlags: detailFlags || inferDetailFlags(searchString),
     measurements,
   };
 }

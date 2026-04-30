@@ -35,9 +35,8 @@ function HistoryCard({ item, isActive, onSelect }) {
     <button
       type="button"
       onClick={onSelect}
-      className={`rounded-xl border p-4 text-left transition-all ${
-        isActive ? 'border-stone-900 bg-stone-900 text-white shadow-lg' : 'border-stone-200 bg-white hover:border-stone-400'
-      }`}
+      className={`rounded-xl border p-4 text-left transition-all ${isActive ? 'border-stone-900 bg-stone-900 text-white shadow-lg' : 'border-stone-200 bg-white hover:border-stone-400'
+        }`}
     >
       <div className="flex items-center justify-between gap-4">
         <div>
@@ -66,6 +65,15 @@ export default function Dashboard() {
   const [activeOutfitConfig, setActiveOutfitConfig] = useState(null);
   const [activeModelUrl, setActiveModelUrl] = useState(null);
   const [sketchImage, setSketchImage] = useState(null);
+
+  // Explicit Garment Properties
+  const [garmentType, setGarmentType] = useState('Suit');
+  const [silhouette, setSilhouette] = useState('tailored');
+  const [sleeveLength, setSleeveLength] = useState('full');
+  const [material, setMaterial] = useState('wool');
+  const [primaryColor, setPrimaryColor] = useState('#1e3a8a');
+  const [accentColor, setAccentColor] = useState('#fbbf24');
+  const [details, setDetails] = useState({ embroidery: false, slit: false, belt: false });
 
   useEffect(() => {
     const profile = buildMeasurementProfile(measurements);
@@ -118,14 +126,20 @@ export default function Dashboard() {
 
     setIsGenerating(true);
 
+    const response = await axios.post('/designs/generate', {
+      prompt,
+      descriptor,
+      measurements,
+      image: sketchImage,
+      garmentType,
+      silhouette,
+      sleeveLength,
+      material,
+      primaryColor,
+      accentColor,
+      detailFlags: details,
+    });
     try {
-      const response = await axios.post('/designs/generate', {
-        prompt,
-        descriptor,
-        measurements,
-        image: sketchImage,
-      });
-
       const generation = response.data.data;
       setHistory((current) => [generation, ...current]);
       setActiveGenerationId(generation.id);
@@ -200,6 +214,73 @@ export default function Dashboard() {
           <section className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
             <h2 className="text-xl font-semibold text-stone-900">Garment Intent</h2>
             <p className="mt-1 text-sm text-stone-500">Provide a detailed description of the garment and optionally upload a reference sketch.</p>
+
+            <div className="mt-4">
+              <label className="mb-1 block text-sm font-medium text-stone-700">Garment Type</label>
+              <input
+                type="text"
+                value={garmentType}
+                onChange={(e) => setGarmentType(e.target.value)}
+                placeholder="e.g. Double-breasted jacket, Evening gown..."
+                className="w-full rounded-xl border border-stone-300 px-4 py-2 text-sm outline-none transition focus:border-stone-900 focus:ring-2 focus:ring-stone-200"
+              />
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-stone-700">Silhouette</label>
+                <select value={silhouette} onChange={(e) => setSilhouette(e.target.value)} className="w-full rounded-xl border border-stone-300 px-3 py-2 text-sm outline-none transition focus:border-stone-900">
+                  <option value="fitted">Fitted</option>
+                  <option value="tailored">Tailored</option>
+                  <option value="relaxed">Relaxed</option>
+                  <option value="oversized">Oversized</option>
+                  <option value="flowing">Flowing</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-stone-700">Sleeve Length</label>
+                <select value={sleeveLength} onChange={(e) => setSleeveLength(e.target.value)} className="w-full rounded-xl border border-stone-300 px-3 py-2 text-sm outline-none transition focus:border-stone-900">
+                  <option value="sleeveless">Sleeveless</option>
+                  <option value="short">Short</option>
+                  <option value="three-quarter">3/4 Length</option>
+                  <option value="full">Full</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-stone-700">Material</label>
+                <select value={material} onChange={(e) => setMaterial(e.target.value)} className="w-full rounded-xl border border-stone-300 px-3 py-2 text-sm outline-none transition focus:border-stone-900">
+                  <option value="cotton">Cotton</option>
+                  <option value="linen">Linen</option>
+                  <option value="denim">Denim</option>
+                  <option value="wool">Wool</option>
+                  <option value="silk">Silk</option>
+                  <option value="satin">Satin</option>
+                  <option value="fleece">Fleece</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-stone-700">Colors</label>
+                <div className="flex gap-2">
+                  <input type="color" value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} className="h-9 w-1/2 cursor-pointer rounded border border-stone-300 bg-white p-1" title="Primary Color" />
+                  <input type="color" value={accentColor} onChange={(e) => setAccentColor(e.target.value)} className="h-9 w-1/2 cursor-pointer rounded border border-stone-300 bg-white p-1" title="Accent Color" />
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 flex gap-4">
+              <label className="flex items-center gap-2 text-sm text-stone-700">
+                <input type="checkbox" checked={details.embroidery} onChange={(e) => setDetails({ ...details, embroidery: e.target.checked })} className="rounded text-stone-900 focus:ring-stone-900" />
+                Embroidery
+              </label>
+              <label className="flex items-center gap-2 text-sm text-stone-700">
+                <input type="checkbox" checked={details.slit} onChange={(e) => setDetails({ ...details, slit: e.target.checked })} className="rounded text-stone-900 focus:ring-stone-900" />
+                Slit
+              </label>
+              <label className="flex items-center gap-2 text-sm text-stone-700">
+                <input type="checkbox" checked={details.belt} onChange={(e) => setDetails({ ...details, belt: e.target.checked })} className="rounded text-stone-900 focus:ring-stone-900" />
+                Belt
+              </label>
+            </div>
 
             <div className="mt-4">
               <label className="mb-1 block text-sm font-medium text-stone-700">Body Descriptor</label>

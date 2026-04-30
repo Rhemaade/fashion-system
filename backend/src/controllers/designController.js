@@ -118,7 +118,10 @@ exports.getGarmentCatalog = async (req, res) => {
 
 exports.generateDesign = async (req, res) => {
   try {
-    const { avatar_id, prompt, descriptor, measurements, image } = req.body;
+    const { 
+      avatar_id, prompt, descriptor, measurements, image,
+      garmentType, silhouette, sleeveLength, material, primaryColor, accentColor, detailFlags
+    } = req.body;
     const userId = req.user.userId; // From JWT Auth Middleware
     const normalizedMeasurements = sanitizeMeasurements(measurements);
     const measurementSegment = formatMeasurementSegment(normalizedMeasurements);
@@ -126,15 +129,24 @@ exports.generateDesign = async (req, res) => {
       prompt,
       descriptor,
       measurements: normalizedMeasurements,
+      garmentType,
+      silhouette,
+      sleeveLength,
+      material,
+      primaryColor,
+      accentColor,
+      detailFlags
     });
 
     // Prompt Formatting Logic
     const engineeredPrompt = [
-      `An elegant and high-quality 3D garment model`,
+      `An elegant and high-quality 3D garment model of a ${garmentType || 'garment'}`,
+      `Style: ${silhouette || 'tailored'} silhouette, ${sleeveLength || 'full'} sleeves, made of ${material || 'premium fabric'}`,
+      `Colors: Primary ${primaryColor || '#000'}, Accent ${accentColor || '#fff'}`,
       `Design description: ${prompt}`,
       `Custom tailored for a ${descriptor} body shape`,
       measurementSegment ? `Body measurements: ${measurementSegment}` : null,
-      `Luxurious materials, ultra-detailed textures, photorealistic 3D render, high-end fashion design style, soft shadows, 4K, centered on a dark neutral background, perfect drape.`
+      `Luxurious materials, high-quality textures, photorealistic 3D render, high-end fashion design style, soft shadows, web-optimized, centered on a dark neutral background, perfect drape.`
     ]
       .filter(Boolean)
       .join('. ');
