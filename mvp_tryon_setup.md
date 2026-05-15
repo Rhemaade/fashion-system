@@ -1,111 +1,212 @@
 # 3D Try-On MVP Setup Guide
 
-This document explains:
+This document explains the current implementation and the manual setup still required.
 
-1. what has already been implemented in code
-2. what you need to run locally
-3. what manual work you need to do next
-4. which third-party tools you should use later
+The project now has two generation/display modes:
 
-The current MVP is a local unisex 3D try-on prototype.
+- local MVP preview mode:
+  - local `avatar.glb`
+  - local or procedural garment preview
+- Replicate mannequin mode:
+  - backend asks Replicate for a dressed mannequin `GLB`
+  - backend downloads that temporary `GLB`
+  - backend uploads it to Firebase Storage
+  - backend saves the Firebase URL in the database
+  - frontend reopens that saved model later from history
 
-It already does these things:
+## 1. What Is Already Implemented
 
-- collects body measurements in the frontend
-- derives a body descriptor from those measurements
-- accepts a garment description prompt
-- converts the prompt into a structured outfit configuration on the backend
-- renders a measurement-shaped neutral avatar and a simple 3D garment preview in the frontend
-- saves generated outfit configurations to history
+### Backend
 
-It does not yet do these things:
+- `C:\Users\Administrator\Desktop\FYP\rhems\backend\src\controllers\designController.js`
+  - builds the Replicate 3D prompt
+  - injects measurements and garment description
+  - asks for a mannequin with:
+    - head
+    - torso
+    - full arms
+    - hands
+    - legs
+    - feet
+    - upright `A-pose`
+  - infers a mannequin profile:
+    - `male`
+    - `female`
+    - `androgynous`
+  - uploads the returned `GLB` from Replicate to Firebase Storage
+  - saves the Firebase URL in `Generation.render_url`
 
-- import a real rigged avatar from a third-party platform
-- simulate real cloth behavior
-- load production garment meshes from `glb`
-- generate true custom garments from AI text prompts
+- `C:\Users\Administrator\Desktop\FYP\rhems\backend\src\utils\firebaseUpload.js`
+  - fetches the temporary Replicate asset
+  - uploads it to Firebase Storage
+  - returns a signed Firebase URL
 
-## 1. Current Code Structure
+- `C:\Users\Administrator\Desktop\FYP\rhems\backend\src\config\firebase.js`
+  - initializes Firebase Admin SDK from environment variables
 
-These are the main files you should know about:
+### Frontend
 
-- `backend/src/services/outfitConfigService.js`
-  - converts prompt text into a structured outfit config
-  - contains the current starter garment catalog
+- `C:\Users\Administrator\Desktop\FYP\rhems\frontend\src\pages\Dashboard.jsx`
+  - sends the prompt, measurements, and garment options to the backend
+  - stores the returned `render_url`
+  - replays saved history
 
-- `backend/src/controllers/designController.js`
-  - receives measurements and prompt from the frontend
-  - stores generated outfit configs in the database
-  - returns saved history
+- `C:\Users\Administrator\Desktop\FYP\rhems\frontend\src\components\ThreeModel.jsx`
+  - if `modelUrl` exists:
+    - loads the generated mannequin `GLB`
+  - otherwise:
+    - loads local `avatar.glb`
+    - shows local garment preview
 
-- `frontend/src/pages/Dashboard.jsx`
-  - measurement form
-  - garment prompt box
-  - garment starter selection
-  - saved history selection
+## 2. What You Need Installed
 
-- `frontend/src/components/ThreeModel.jsx`
-  - renders the local 3D avatar
-  - applies the generated outfit config as simple garment geometry
-
-## 2. Before You Run Anything
-
-Make sure these are installed on your machine:
+Install these first:
 
 - Node.js 18 or newer
 - npm
 - PostgreSQL
 
-You also need a database created in PostgreSQL.
+You also need:
 
-Example:
+- a Replicate account and API token
+- a Firebase project with Storage enabled
 
-- database name: `rhems`
-- username: `postgres`
-- password: `yourpassword`
+## 3. Required Backend Environment Variables
 
-## 3. Backend Setup
+Create:
 
-Go to:
+- `C:\Users\Administrator\Desktop\FYP\rhems\backend\.env`
 
-- `C:\Users\Administrator\Desktop\FYP\rhems\backend`
-
-### Step 1: create or update `backend/.env`
-
-Make sure `backend/.env` contains:
+At minimum, it should contain:
 
 ```env
 DATABASE_URL="postgresql://postgres:yourpassword@localhost:5432/rhems"
 JWT_SECRET="replace_this_with_a_long_random_secret"
 PORT=5000
+REPLICATE_API_TOKEN="r8_xxxxxxxxxxxxxxxxx"
+FIREBASE_STORAGE_BUCKET="your-project-id.firebasestorage.app"
 ```
 
-You do not need `REPLICATE_API_TOKEN` for this MVP path anymore.
+Then choose one Firebase credential method.
 
-### Step 2: install backend dependencies
+### Option A: single JSON string
+
+Add:
+
+```env
+FIREBASE_SERVICE_ACCOUNT_JSON="{\"type\":\"service_account\",\"project_id\":\"your-project-id\",\"private_key_id\":\"...\",\"private_key\":\"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n\",\"client_email\":\"firebase-adminsdk-xxxxx@your-project-id.iam.gserviceaccount.com\",\"client_id\":\"...\",\"auth_uri\":\"https://accounts.google.com/o/oauth2/auth\",\"token_uri\":\"https://oauth2.googleapis.com/token\",\"auth_provider_x509_cert_url\":\"https://www.googleapis.com/oauth2/v1/certs\",\"client_x509_cert_url\":\"...\"}"
+```
+
+If you use this option, you do not need the split Firebase variables below.
+
+### Option B: split variables
+
+Add:
+
+```env
+FIREBASE_PROJECT_ID="your-project-id"
+FIREBASE_CLIENT_EMAIL="firebase-adminsdk-xxxxx@your-project-id.iam.gserviceaccount.com"
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+```
+
+Notes:
+
+- keep the `\n` sequences inside `FIREBASE_PRIVATE_KEY`
+- do not paste the private key as multiple physical lines unless you know your shell loader supports it
+
+## 4. Firebase Manual Setup
+
+Do this exactly in Firebase Console.
+
+### Step 1: create or choose a Firebase project
+
+Go to:
+
+- [https://console.firebase.google.com/](https://console.firebase.google.com/)
+
+Create a project if you do not already have one.
+
+### Step 2: enable Firebase Storage
+
+Inside the project:
+
+1. open `Build`
+2. open `Storage`
+3. click `Get started`
+4. choose your location
+5. create the default bucket
+
+You need the bucket name afterward.
+
+Typical bucket names look like:
+
+- `your-project-id.firebasestorage.app`
+- or sometimes `your-project-id.appspot.com`
+
+Use the exact bucket shown in Firebase.
+
+### Step 3: create a service account key
+
+Inside the same Firebase project:
+
+1. click the gear icon
+2. open `Project settings`
+3. open the `Service accounts` tab
+4. click `Generate new private key`
+5. download the JSON file
+
+From that JSON file, you will need either:
+
+- the full JSON contents for `FIREBASE_SERVICE_ACCOUNT_JSON`
+- or these fields for split env setup:
+  - `project_id`
+  - `client_email`
+  - `private_key`
+
+Keep that JSON file private.
+
+### Step 4: confirm the service account can access Storage
+
+This normally works automatically if you use the generated Admin SDK service account.
+
+You do not need to make the bucket publicly readable because the backend creates signed URLs.
+
+### Step 5: optional Storage Rules note
+
+For this backend flow, the upload happens through Firebase Admin SDK.
+That means Firebase Storage Rules do not block the server-side upload.
+
+You can keep restrictive client-side rules for now.
+
+## 5. Database Setup
+
+Go to:
+
+- `C:\Users\Administrator\Desktop\FYP\rhems\backend`
 
 Run:
 
 ```powershell
-cd C:\Users\Administrator\Desktop\FYP\rhems\backend
 npm install
 ```
 
-### Step 3: run Prisma migration if needed
-
-If your database has not been set up yet, run:
+Then run Prisma if your database is not initialized yet:
 
 ```powershell
 npx prisma migrate dev
 ```
 
-If Prisma asks for a migration name, use something like:
+If asked for a migration name, use:
 
 ```text
 init
 ```
 
-### Step 4: start the backend server
+## 6. Start The Backend
+
+From:
+
+- `C:\Users\Administrator\Desktop\FYP\rhems\backend`
 
 Run:
 
@@ -113,359 +214,140 @@ Run:
 npm run dev
 ```
 
-Expected result:
+Expected behavior:
 
-- backend starts on `http://localhost:5000`
+- server starts on `http://localhost:5000`
+- when generation succeeds, Replicate returns a temporary model URL
+- backend immediately uploads it to Firebase
+- database stores the Firebase URL, not the temporary Replicate URL
 
-You can test it in browser or PowerShell:
+## 7. Start The Frontend
 
-```powershell
-Invoke-WebRequest http://localhost:5000/health
-```
-
-## 4. Frontend Setup
-
-Go to:
+From:
 
 - `C:\Users\Administrator\Desktop\FYP\rhems\frontend`
 
-### Step 1: install frontend dependencies
-
 Run:
 
 ```powershell
-cd C:\Users\Administrator\Desktop\FYP\rhems\frontend
 npm install
-```
-
-### Step 2: start the frontend
-
-Run:
-
-```powershell
 npm run dev
 ```
 
-Expected result:
+Expected behavior:
 
-- Vite starts, usually on `http://localhost:5173`
+- frontend starts, usually on `http://localhost:5173`
+- generation requests go to the backend
+- history entries can reopen generated models after the original Replicate URL has expired
 
-Open the frontend in the browser.
+## 8. How The Mannequin Selection Works
 
-## 5. How To Test The MVP
+The backend currently decides mannequin profile using prompt text and measurements.
 
-### Step 1: register or log in
+### It tends toward `female` when the prompt mentions:
 
-Use the login page in the browser.
+- dress
+- gown
+- skirt
+- bodice
+- bustier
+- bralette
+- blouse
 
-### Step 2: enter measurements
+### It tends toward `male` when the prompt mentions:
 
-In the dashboard, fill:
+- suit
+- tuxedo
+- agbada
+- senator
+- menswear
+- blazer
 
-- height
-- neck
-- shoulders
-- chest
-- waist
-- hips
-- inseam
-- sleeve
+### Otherwise:
 
-These values shape the preview avatar.
+- it uses simple chest/waist/hips heuristics
+- if still unclear, it falls back to `androgynous`
 
-### Step 3: choose a garment idea
+Important limitation:
 
-You can do one of these:
+- this is prompt guidance only
+- Replicate may still return inconsistent mannequin styling
 
-- click a starter garment card
-- type your own prompt into the prompt box
+## 9. What Garments To Add Locally
 
-Example prompts:
+Even with Replicate mannequin generation, keep a small local garment library.
+You still need it for fallback preview and for any non-Replicate mode.
 
-- `Tailored navy suit with structured shoulders and gold button accents`
-- `Cream senator set with subtle embroidery and relaxed premium tailoring`
-- `Emerald satin evening gown with sleeveless bodice and slit`
-- `Oversized charcoal hoodie with streetwear proportions`
+Add garment files here:
 
-### Step 4: generate
+- `C:\Users\Administrator\Desktop\FYP\rhems\frontend\public\models\garments\`
 
-Click:
+Recommended first assets:
 
-- `Generate 3D Try-On Look`
+- `tailored-suit.glb`
+- `senator-set.glb`
+- `formal-draped-look.glb`
+- `oversized-hoodie.glb`
 
-Expected result:
+These names should match the backend `catalogId` values.
 
-- backend creates an outfit config
-- frontend renders a new outfit on the avatar
-- look is saved in history
+## 10. How Measurement Dynamics Work In This MVP
 
-### Step 5: replay from history
+There are now two different measurement behaviors.
 
-Click a saved look in the history section.
+### Local preview mode
 
-Expected result:
+When the frontend is showing the local avatar:
 
-- the active outfit config changes
-- the 3D scene updates to the selected look
+- measurements slightly adjust avatar proportions
+- measurements influence procedural or local garment preview logic
 
-Important:
+This is lightweight approximation only.
+It is not true morph-target body fitting yet.
 
-- old history records from the previous image-generation system may not work correctly
-- only newly generated looks from this MVP should be expected to replay properly
+### Replicate mannequin mode
 
-## 6. What You Should Do Next Manually
+When the backend is generating a remote mannequin:
 
-This section is the most important one for continuing the project.
+- measurements are injected into the Replicate prompt
+- Replicate interprets them semantically
+- the final shape quality depends on the model following the prompt correctly
 
-The current garment shapes are procedural placeholders.
-They are useful for the MVP, but not enough for a final project.
+That means the measurement behavior is not deterministic in the Replicate branch.
+It is AI-guided, not geometry-accurate.
 
-Your next manual work should be done in this order.
+## 11. Practical Limits Of This Firebase Flow
 
-### Step A: create a real garment asset library
+This solves one specific problem:
 
-You should create real 3D garment files for a small first set of clothes.
+- Replicate asset URLs expire quickly
 
-Start with only 4 or 5 garments:
+It does not solve these by itself:
 
-- `tailored_suit_jacket.glb`
-- `tailored_trouser.glb`
-- `senator_top.glb`
-- `formal_draped_look.glb`
-- `hoodie.glb`
+- guaranteed accurate body morphing
+- guaranteed male/female mannequin correctness
+- guaranteed consistent A-pose output
+- production-grade garment fitting
 
-Where to create them:
+Those are model-quality and pipeline problems, not storage problems.
 
-- Blender
-- Marvelous Designer
-- CLO3D
+## 12. Recommended Next Engineering Steps
 
-Recommended approach:
+Do these next, in order:
 
-1. model each garment
-2. keep topology clean
-3. export each one as `glb`
-4. keep scale consistent with your avatar
-
-Where to put them in the project later:
-
-- create a folder like `frontend/public/models/garments/`
-
-Example:
-
-- `frontend/public/models/garments/tailored_suit_jacket.glb`
-- `frontend/public/models/garments/tailored_trouser.glb`
-
-### Step B: replace procedural garments in the frontend
-
-After you create garment files, the next implementation step is:
-
-1. load the garment `glb` in `frontend/src/components/ThreeModel.jsx`
-2. choose the correct garment based on `outfitConfig.catalogId`
-3. apply colors/material overrides where needed
-
-That change has not been done yet.
-
-Right now `ThreeModel.jsx` still uses primitive meshes like:
-
-- cylinders
-- cones
-- capsules
-
-### Step C: move to a better avatar source
-
-The current avatar is also procedural.
-It is acceptable for an MVP, but not for a serious final try-on.
-
-For this project, prefer a neutral or customizable avatar base rather than a gender-locked one.
-
-You should choose one of these routes:
-
-#### Option 1: MakeHuman
-
-Use if you want the easiest next step.
-
-What to do:
-
-1. download MakeHuman
-2. create a base avatar
-3. export it as `fbx` or `obj`
-4. convert to `glb` if needed using Blender
-5. place the final model in:
-   - `frontend/public/models/avatar.glb`
-
-Why choose it:
-
-- easier than SMPL
-- good enough for student MVP progress
-
-#### Option 2: SMPL-based avatar
-
-Use if you want a more research-oriented body model.
-
-What to do:
-
-1. get access to the SMPL model according to its licensing terms
-2. build or use a measurement-to-shape mapping step
-3. export a mesh or `glb` for frontend rendering
-
-Why choose it:
-
-- more academically credible
-- better path if your report emphasizes body parameterization
-
-Why not choose it first:
-
-- significantly more engineering complexity
-
-#### Option 3: Meshcapade or similar platform
-
-Use if you want a commercial body-avatar route.
-
-What to do:
-
-1. create an account on the platform
-2. review its avatar generation or API docs
-3. test whether it accepts body measurements directly
-4. export or retrieve a usable mesh format
-
-Why choose it:
-
-- may reduce body-model engineering work
-
-Why not choose it first:
-
-- platform dependency
-- possible cost and licensing constraints
-
-### Step D: attach real garments to the real avatar
-
-Once you have:
-
-- a real avatar mesh
-- real garment meshes
-
-you need to make them work together.
-
-At MVP level, do this manually first:
-
-1. open avatar and garment in Blender
-2. align garment to avatar
-3. adjust scale
-4. export corrected version
-5. test in frontend
-
-This is the simplest path.
-
-Do not try to build automatic cloth simulation immediately.
-
-### Step E: later add actual cloth simulation
-
-Only after the earlier steps are stable.
-
-Possible tools:
-
-- CLO3D
-- Marvelous Designer
-- Blender cloth workflow
-
-What this would be used for:
-
-- more realistic draping
-- better sleeve behavior
-- better dress or gown fall
-
-This is a later-phase feature, not the immediate next step.
-
-## 7. Where Third-Party APIs Fit Later
-
-The current MVP does not need an external AI API.
-
-When you add one later, use it for structured reasoning, not direct final rendering.
-
-### Recommended use of an AI API
-
-Good use:
-
-- convert prompt text into outfit parameters
-- classify garment category
-- infer fabric, sleeve length, fit type, embroidery, slit, belt, and colors
-
-Example output:
-
-```json
-{
-  "catalogId": "evening-gown",
-  "silhouette": "flowing",
-  "sleeveLength": "sleeveless",
-  "material": "satin",
-  "primaryColor": "#047857",
-  "accentColor": "#d4af37",
-  "detailFlags": {
-    "embroidery": false,
-    "belt": false,
-    "slit": true,
-    "pockets": false,
-    "layered": false
-  }
-}
-```
-
-Bad use:
-
-- ask an image model to generate the final try-on image and then pretend it is 3D
-
-### If you want to use OpenAI later
-
-You would add:
-
-1. API key in backend `.env`
-2. a backend service like:
-   - `backend/src/services/promptParserService.js`
-3. call that service from `designController.js`
-4. validate the JSON response before saving it
-
-That is not implemented yet.
-
-## 8. Recommended Immediate Next Task
-
-If you want the project to become visibly more realistic, do this next:
-
-1. create one real garment in Blender
-2. export it as `glb`
-3. tell me the exact path of that file
-4. I will wire it into `ThreeModel.jsx`
-
-The best first garment to build is:
-
-- `senator_top.glb`
-
-Why:
-
-- simpler than a full suit
-- easier to align than a gown
-- directly relevant to your domain
-
-## 9. Recommended Order Of Work
-
-Follow this order:
-
-1. run the current MVP locally
-2. generate and save a few looks
-3. create one real garment asset
-4. integrate that garment into the viewer
-5. replace the procedural avatar with a real avatar model
-6. expand the catalog
-7. add AI-based prompt parsing
-8. add optional cloth simulation later
-
-## 10. If You Want Me To Continue
-
-The best next coding task is one of these:
-
-1. integrate `glb` garment loading into the frontend viewer
-2. redesign the database so outfit config has its own Prisma column
-3. add a real prompt-to-JSON parser service
-4. add avatar preset saving and loading
-
-If you want, I can start with `1` now and prepare the codebase so you only need to drop garment files into a folder. 
+1. confirm Firebase upload is working with one real generation
+2. confirm the saved history reopens the same generated model after more than one hour
+3. add local garment `GLB` files for the fallback path
+4. move mannequin profile inference into a dedicated service if you want it easier to tune
+5. add a database field like `storage_path` later if you want easier asset management inside Firebase
+
+## 13. If You Want Me To Continue
+
+The strongest next implementation step would be one of these:
+
+1. add a Prisma column for Firebase `storagePath`
+2. make the frontend show whether a history item is:
+   - local preview
+   - generated mannequin `GLB`
+3. improve mannequin profile inference and prompt shaping
+4. add garment `GLB` asset loading keyed by `catalogId`

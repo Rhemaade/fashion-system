@@ -328,9 +328,8 @@ export default function ThreeModel({ measurements, outfitConfig, modelUrl }) {
           ) : (
             <GarmentLayer measurements={measurements} outfitConfig={outfitConfig} />
           )}
-          <Environment preset="studio" />
         </Suspense>
-        <OrbitControls makeDefault minDistance={4} maxDistance={10} maxPolarAngle={Math.PI / 1.6} />
+        <OrbitControls makeDefault minDistance={1} maxDistance={10} maxPolarAngle={Math.PI / 1.6} enablePan={true} panSpeed={1.5} />
       </Canvas>
       {!outfitConfig && (
         <div className="absolute top-4 left-4 bg-white/85 px-3 py-1 rounded-full text-xs font-semibold shadow text-stone-600">

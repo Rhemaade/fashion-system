@@ -26,30 +26,30 @@ const defaultMeasurements = {
   sleeve: 24,
 };
 
+const MAX_GARMENT_PROMPT_LENGTH = 450;
 
 
-function HistoryCard({ item, isActive, onSelect }) {
+function HistoryCard({ item, isActive, onSelect, onShowDetails }) {
   const config = item.outfit_config;
 
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className={`rounded-xl border p-4 text-left transition-all ${isActive ? 'border-stone-900 bg-stone-900 text-white shadow-lg' : 'border-stone-200 bg-white hover:border-stone-400'
-        }`}
+    <div
+      className={`rounded-xl border p-4 text-left transition-all flex flex-col justify-between h-full ${isActive ? 'border-stone-900 bg-stone-900 text-white shadow-lg' : 'border-stone-200 bg-white hover:border-stone-400'}`}
     >
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold">{config?.label || 'Saved Look'}</p>
-          <p className={`text-xs ${isActive ? 'text-stone-300' : 'text-stone-500'}`}>{config?.silhouette || 'tailored'} silhouette</p>
-        </div>
-        <div className="flex gap-2">
-          <span className="h-5 w-5 rounded-full border border-black/10" style={{ backgroundColor: config?.primaryColor || '#d6d3d1' }} />
-          <span className="h-5 w-5 rounded-full border border-black/10" style={{ backgroundColor: config?.accentColor || '#f8fafc' }} />
-        </div>
-      </div>
-      <p className={`mt-3 text-xs leading-5 ${isActive ? 'text-stone-200' : 'text-stone-600'}`}>{item.prompt_text}</p>
-    </button>
+      <button className="flex-1 text-left" onClick={onSelect}>
+        <p className="text-sm font-semibold">{config?.label || 'Saved Look'}</p>
+        <p className={`text-xs mt-1 ${isActive ? 'text-stone-300' : 'text-stone-500'}`}>
+          {item.generated_at ? new Date(item.generated_at).toLocaleDateString() : 'Just now'}
+        </p>
+      </button>
+      
+      <button 
+        onClick={(e) => { e.stopPropagation(); onShowDetails(item); }} 
+        className={`mt-4 text-xs font-semibold self-start border rounded px-2 py-1 ${isActive ? 'border-stone-700 text-stone-200 hover:bg-stone-800' : 'border-stone-200 text-stone-600 hover:bg-stone-50'}`}
+      >
+        View Details
+      </button>
+    </div>
   );
 }
 
@@ -65,6 +65,8 @@ export default function Dashboard() {
   const [activeOutfitConfig, setActiveOutfitConfig] = useState(null);
   const [activeModelUrl, setActiveModelUrl] = useState(null);
   const [sketchImage, setSketchImage] = useState(null);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [detailsModalItem, setDetailsModalItem] = useState(null);
 
   // Explicit Garment Properties
   const [garmentType, setGarmentType] = useState('Suit');
@@ -89,11 +91,7 @@ export default function Dashboard() {
       .then((res) => {
         const records = res.data?.data || [];
         setHistory(records);
-        if (records.length > 0) {
-          setActiveGenerationId(records[0].id);
-          setActiveOutfitConfig(records[0].outfit_config);
-          setActiveModelUrl(records[0].render_url);
-        }
+        // Do not auto-select the first item; show default avatar instead.
       })
       .catch((error) => console.error('Failed fetching history:', error));
   }, [user]);
@@ -120,26 +118,33 @@ export default function Dashboard() {
 
   const handleGenerate = async () => {
     if (!prompt.trim()) {
-      alert('Please describe the garment you want to preview.');
+      setErrorMsg('Please describe the garment you want to preview.');
+      return;
+    }
+
+    if (prompt.trim().length > MAX_GARMENT_PROMPT_LENGTH) {
+      setErrorMsg(`Garment prompt must be ${MAX_GARMENT_PROMPT_LENGTH} characters or fewer.`);
       return;
     }
 
     setIsGenerating(true);
+    setErrorMsg('');
 
-    const response = await axios.post('/designs/generate', {
-      prompt,
-      descriptor,
-      measurements,
-      image: sketchImage,
-      garmentType,
-      silhouette,
-      sleeveLength,
-      material,
-      primaryColor,
-      accentColor,
-      detailFlags: details,
-    });
     try {
+      const response = await axios.post('/designs/generate', {
+        prompt,
+        descriptor,
+        measurements,
+        image: sketchImage,
+        garmentType,
+        silhouette,
+        sleeveLength,
+        material,
+        primaryColor,
+        accentColor,
+        detailFlags: details,
+      });
+
       const generation = response.data.data;
       setHistory((current) => [generation, ...current]);
       setActiveGenerationId(generation.id);
@@ -147,7 +152,8 @@ export default function Dashboard() {
       setActiveModelUrl(generation.render_url);
     } catch (error) {
       console.error(error);
-      alert(error.response?.data?.error || 'Failed to build try-on preview.');
+      const msg = error.response?.data?.error || error.response?.data?.details || 'Failed to build try-on preview. An error occurred on the server.';
+      setErrorMsg(msg);
     } finally {
       setIsGenerating(false);
     }
@@ -162,7 +168,19 @@ export default function Dashboard() {
 
 
   return (
-    <div className="min-h-screen bg-[#f3efe7] px-4 py-6 md:px-8">
+    <div className="min-h-screen bg-[#f3efe7] px-4 py-6 md:px-8 relative">
+      {isGenerating && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/60 backdrop-blur-sm">
+          <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full text-center flex flex-col items-center">
+            <div className="w-16 h-16 border-4 border-stone-200 border-t-stone-900 rounded-full animate-spin mb-6"></div>
+            <h3 className="text-xl font-bold text-stone-900 mb-2">Crafting Your Design</h3>
+            <p className="text-sm text-stone-500">
+              Our AI is weaving the fabric and taking measurements. This may take a moment to generate a high-quality 3D render...
+            </p>
+          </div>
+        </div>
+      )}
+
       <header className="mb-8 flex flex-col gap-4 rounded-3xl border border-stone-200 bg-white px-6 py-5 shadow-sm md:flex-row md:items-center md:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-stone-500">RHEMS UNISEX MVP</p>
@@ -214,6 +232,13 @@ export default function Dashboard() {
           <section className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
             <h2 className="text-xl font-semibold text-stone-900">Garment Intent</h2>
             <p className="mt-1 text-sm text-stone-500">Provide a detailed description of the garment and optionally upload a reference sketch.</p>
+            
+            {errorMsg && (
+              <div className="mt-4 bg-red-50 text-red-600 p-3 rounded-xl mb-4 text-sm font-medium border border-red-200">
+                {errorMsg}
+              </div>
+            )}
+
 
             <div className="mt-4">
               <label className="mb-1 block text-sm font-medium text-stone-700">Garment Type</label>
@@ -299,8 +324,12 @@ export default function Dashboard() {
                 className="h-32 w-full resize-none rounded-2xl border border-stone-300 px-4 py-3 text-sm outline-none transition focus:border-stone-900 focus:ring-2 focus:ring-stone-200"
                 value={prompt}
                 onChange={(event) => setPrompt(event.target.value)}
+                maxLength={MAX_GARMENT_PROMPT_LENGTH}
                 placeholder="e.g. A tailored double-breasted suit jacket in navy blue wool with gold buttons and structured shoulders..."
               />
+              <div className="mt-1 text-right text-xs text-stone-500">
+                {prompt.length}/{MAX_GARMENT_PROMPT_LENGTH}
+              </div>
             </div>
 
             <div className="mt-4">
@@ -369,6 +398,7 @@ export default function Dashboard() {
                     item={item}
                     isActive={item.id === activeGenerationId}
                     onSelect={() => selectHistoryItem(item)}
+                    onShowDetails={(i) => setDetailsModalItem(i)}
                   />
                 ))}
               </div>
@@ -380,6 +410,60 @@ export default function Dashboard() {
           </section>
         </main>
       </div>
+
+      {detailsModalItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/60 backdrop-blur-sm p-4">
+          <div className="bg-white p-6 rounded-3xl shadow-2xl max-w-lg w-full relative">
+            <button 
+              onClick={() => setDetailsModalItem(null)}
+              className="absolute top-4 right-4 text-stone-400 hover:text-stone-900 transition font-bold text-xl leading-none"
+            >
+              &times;
+            </button>
+            <h3 className="text-xl font-bold text-stone-900 mb-2">
+              {detailsModalItem.outfit_config?.label || 'Saved Look'}
+            </h3>
+            <p className="text-xs text-stone-500 mb-6">
+              Generated on {detailsModalItem.generated_at ? new Date(detailsModalItem.generated_at).toLocaleDateString() : 'Just now'}
+            </p>
+            
+            <div className="space-y-4 text-sm text-stone-700">
+              <div className="bg-stone-50 p-4 rounded-xl border border-stone-200">
+                <p className="font-semibold text-stone-900 mb-1">Prompt</p>
+                <p className="italic">"{detailsModalItem.prompt_text}"</p>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="font-semibold text-stone-900 mb-1">Silhouette</p>
+                  <p className="capitalize">{detailsModalItem.outfit_config?.silhouette}</p>
+                </div>
+                <div>
+                  <p className="font-semibold text-stone-900 mb-1">Material</p>
+                  <p className="capitalize">{detailsModalItem.outfit_config?.material}</p>
+                </div>
+                <div>
+                  <p className="font-semibold text-stone-900 mb-1">Garment Type</p>
+                  <p className="capitalize">{detailsModalItem.outfit_config?.garmentType}</p>
+                </div>
+                <div>
+                  <p className="font-semibold text-stone-900 mb-1">Sleeve Length</p>
+                  <p className="capitalize">{detailsModalItem.outfit_config?.sleeveLength}</p>
+                </div>
+              </div>
+              
+              <div className="pt-4 flex justify-end">
+                <button 
+                  onClick={() => setDetailsModalItem(null)}
+                  className="bg-stone-900 text-white px-4 py-2 rounded-xl font-semibold hover:bg-stone-700 transition"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
