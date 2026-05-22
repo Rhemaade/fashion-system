@@ -50,8 +50,9 @@ function buildGarmentMetrics(metrics, outfitConfig) {
   };
 }
 
-function RealAvatar({ measurements }) {
-  const { scene } = useGLTF('/models/avatar.glb');
+function RealAvatar({ measurements, avatarGender = 'male' }) {
+  const avatarPath = avatarGender === 'female' ? '/models/female-avatar.glb' : '/models/male-avatar.glb';
+  const { scene } = useGLTF(avatarPath);
   const metrics = useMemo(() => buildAvatarMetrics(measurements), [measurements]);
   const preparedAvatar = useMemo(() => {
     const clonedScene = scene.clone(true);
@@ -288,26 +289,32 @@ function RemoteGLBGarment({ modelUrl }) {
 function Stage() {
   return (
     <>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
-        <circleGeometry args={[4.5, 64]} />
-        <meshStandardMaterial color="#dfd6c8" roughness={0.98} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]} receiveShadow>
+        <circleGeometry args={[4.8, 72]} />
+        <meshStandardMaterial color="#e7ddd0" roughness={0.95} metalness={0.03} />
       </mesh>
-      <gridHelper args={[10, 20, '#d6d3d1', '#e7e5e4']} position={[0, 0.01, 0]} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.015, 0]} receiveShadow>
+        <ringGeometry args={[3.35, 4.2, 80]} />
+        <meshStandardMaterial color="#1f3152" roughness={0.55} metalness={0.12} transparent opacity={0.08} />
+      </mesh>
     </>
   );
 }
 
-export default function ThreeModel({ measurements, outfitConfig, modelUrl }) {
+export default function ThreeModel({ measurements, outfitConfig, modelUrl, avatarGender = 'male' }) {
   return (
-    <div className="w-full h-[560px] border rounded-lg overflow-hidden bg-stone-50 shadow-inner relative">
-      <Canvas camera={{ position: [0, 2.4, 7], fov: 40 }} shadows>
-        <color attach="background" args={['#f7f4ee']} />
-        <ambientLight intensity={0.95} />
-        <directionalLight position={[5, 8, 5]} intensity={1.25} castShadow shadow-mapSize-width={2048} shadow-mapSize-height={2048} />
-        <directionalLight position={[-3, 5, -2]} intensity={0.45} />
+    <div className="relative h-[620px] w-full overflow-hidden rounded-[28px] border border-white/35 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.68),transparent_28%),linear-gradient(180deg,#f7f0e7_0%,#eadfce_52%,#d7c5ac_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]">
+      <Canvas camera={{ position: [0, 2.35, 6.7], fov: 36 }} shadows>
+        <color attach="background" args={['#f2e8dc']} />
+        <fog attach="fog" args={['#f2e8dc', 8.5, 13.5]} />
+        <ambientLight intensity={1.1} />
+        <directionalLight position={[5, 8, 5]} intensity={1.35} castShadow shadow-mapSize-width={2048} shadow-mapSize-height={2048} />
+        <directionalLight position={[-4, 4.5, -2]} intensity={0.38} />
+        <spotLight position={[0, 8, 2]} angle={0.34} penumbra={0.9} intensity={0.85} color="#fffaf2" />
         <Stage />
+        <Environment preset="studio" />
         <Suspense fallback={null}>
-          {!modelUrl && <RealAvatar measurements={measurements} />}
+          {!modelUrl && <RealAvatar measurements={measurements} avatarGender={avatarGender} />}
           {modelUrl ? (
             <GarmentErrorBoundary
               outfitConfig={outfitConfig}
@@ -329,15 +336,25 @@ export default function ThreeModel({ measurements, outfitConfig, modelUrl }) {
             <GarmentLayer measurements={measurements} outfitConfig={outfitConfig} />
           )}
         </Suspense>
-        <OrbitControls makeDefault minDistance={1} maxDistance={10} maxPolarAngle={Math.PI / 1.6} enablePan={true} panSpeed={1.5} />
+        <OrbitControls
+          makeDefault
+          minDistance={2.4}
+          maxDistance={8.5}
+          maxPolarAngle={Math.PI / 1.6}
+          minPolarAngle={Math.PI / 3.4}
+          enablePan={false}
+          autoRotate={!modelUrl}
+          autoRotateSpeed={0.6}
+        />
       </Canvas>
       {!outfitConfig && (
-        <div className="absolute top-4 left-4 bg-white/85 px-3 py-1 rounded-full text-xs font-semibold shadow text-stone-600">
-          Choose a garment prompt to preview the fitted outfit.
+        <div className="absolute left-5 top-5 rounded-full border border-white/45 bg-white/62 px-4 py-2 text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-[#525d6f] shadow-[0_18px_48px_rgba(18,18,18,0.08)] backdrop-blur-xl">
+          Curate a brief to preview the atelier silhouette.
         </div>
       )}
     </div>
   );
 }
 
-useGLTF.preload('/models/avatar.glb');
+useGLTF.preload('/models/male-avatar.glb');
+useGLTF.preload('/models/female-avatar.glb');

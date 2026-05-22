@@ -15,6 +15,9 @@ model User {
   username      String       @unique
   email         String       @unique
   password_hash String
+  role          String
+  gender        String
+  default_customer_gender String?
   created_at    DateTime     @default(now())
   avatars       Avatar[]
   generations   Generation[]

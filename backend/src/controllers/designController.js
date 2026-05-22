@@ -13,7 +13,6 @@ const MAX_GARMENT_DESCRIPTION_LENGTH = 450;
 const {
   GARMENT_CATALOG,
   buildOutfitConfig,
-  serializeOutfitConfig,
   deserializeOutfitConfig,
 } = require('../services/outfitConfigService');
 
@@ -49,31 +48,6 @@ function formatMeasurementSegment(measurements) {
     .join(', ');
 }
 
-function inferMannequinProfile({ prompt = '', garmentType = '', descriptor = '', measurements = {} }) {
-  const combinedText = `${prompt} ${garmentType} ${descriptor}`.toLowerCase();
-  const hips = Number(measurements.hips || 0);
-  const chest = Number(measurements.chest || 0);
-  const waist = Number(measurements.waist || 0);
-
-  if (/\b(gown|dress|skirt|bodice|bustier|bralette|blouse)\b/.test(combinedText)) {
-    return 'female';
-  }
-
-  if (/\b(suit|tuxedo|agbada|senator|menswear|blazer)\b/.test(combinedText)) {
-    return 'male';
-  }
-
-  if (hips >= chest + 4 && waist < hips) {
-    return 'female';
-  }
-
-  if (chest >= hips + 4 && waist >= chest * 0.72) {
-    return 'male';
-  }
-
-  return 'androgynous';
-}
-
 function clipText(value, maxLength) {
   const normalized = String(value || '').replace(/\s+/g, ' ').trim();
   if (normalized.length <= maxLength) {
@@ -92,7 +66,7 @@ function buildEngineeredPrompt({
   primaryColor,
   accentColor,
   measurementSegment,
-  mannequinProfile,
+  targetGender,
 }) {
   const fixedSegments = [
     `High-quality 3D mannequin wearing ${garmentType || 'garment'}`,
@@ -103,7 +77,7 @@ function buildEngineeredPrompt({
     accentColor ? `accent ${accentColor}` : null,
     descriptor ? `body shape ${clipText(descriptor, 80)}` : null,
     measurementSegment ? `measurements ${measurementSegment}` : null,
-    `${mannequinProfile} mannequin with head, arms, hands, legs and feet in upright A-pose`,
+    `${targetGender} mannequin with head, arms, hands, legs and feet in upright A-pose`,
     `downloadable GLB, realistic drape, clean neutral background`,
   ].filter(Boolean);
 
@@ -208,18 +182,34 @@ exports.generateDesign = async (req, res) => {
   try {
     const {
       avatar_id, prompt, descriptor, measurements, image,
-      garmentType, silhouette, sleeveLength, material, primaryColor, accentColor, detailFlags
+      garmentType, silhouette, sleeveLength, material, primaryColor, accentColor, detailFlags, targetGender
     } = req.body;
     const normalizedPrompt = clipText(prompt, MAX_GARMENT_DESCRIPTION_LENGTH);
     const userId = req.user.userId; // From JWT Auth Middleware
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        role: true,
+        gender: true,
+        username: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    const normalizedTargetGender = String(
+      user.role === 'tailor' ? (targetGender || '') : user.gender,
+    ).trim().toLowerCase();
+
+    if (!['male', 'female'].includes(normalizedTargetGender)) {
+      return res.status(400).json({ error: 'A valid target gender is required.' });
+    }
+
     const normalizedMeasurements = sanitizeMeasurements(measurements);
     const measurementSegment = formatMeasurementSegment(normalizedMeasurements);
-    const mannequinProfile = inferMannequinProfile({
-      prompt: normalizedPrompt,
-      garmentType,
-      descriptor,
-      measurements: normalizedMeasurements,
-    });
     const outfitConfig = buildOutfitConfig({
       prompt: normalizedPrompt,
       descriptor,
@@ -232,7 +222,8 @@ exports.generateDesign = async (req, res) => {
       accentColor,
       detailFlags
     });
-    outfitConfig.mannequinProfile = mannequinProfile;
+    outfitConfig.targetGender = normalizedTargetGender;
+    outfitConfig.createdByRole = user.role;
 
     const engineeredPrompt = buildEngineeredPrompt({
       prompt: normalizedPrompt,
@@ -244,7 +235,7 @@ exports.generateDesign = async (req, res) => {
       primaryColor,
       accentColor,
       measurementSegment,
-      mannequinProfile,
+      targetGender: normalizedTargetGender,
     });
 
     // let generatedModelUrl = null;

@@ -1,18 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import ThreeModel from '../components/ThreeModel';
 import { buildMeasurementProfile } from '../utils/logicMapper';
 import { useAuth } from '../contexts/AuthContext';
+import AppHeader from '../components/AppHeader';
 
 const measurementFields = [
-  { key: 'height', label: 'Height', unit: 'cm', min: 140, max: 220 },
-  { key: 'neck', label: 'Neck', unit: 'in', min: 10, max: 24 },
-  { key: 'shoulders', label: 'Shoulders', unit: 'in', min: 12, max: 28 },
-  { key: 'chest', label: 'Chest/Bust', unit: 'in', min: 24, max: 70 },
-  { key: 'waist', label: 'Waist', unit: 'in', min: 18, max: 60 },
-  { key: 'hips', label: 'Hips', unit: 'in', min: 24, max: 70 },
-  { key: 'inseam', label: 'Inseam', unit: 'in', min: 20, max: 40 },
-  { key: 'sleeve', label: 'Sleeve', unit: 'in', min: 18, max: 32 },
+  { key: 'height', label: 'Height', unit: 'cm', min: 140, max: 220, step: 1 },
+  { key: 'neck', label: 'Neck', unit: 'in', min: 10, max: 24, step: 0.5 },
+  { key: 'shoulders', label: 'Shoulders', unit: 'in', min: 12, max: 28, step: 0.5 },
+  { key: 'chest', label: 'Chest / Bust', unit: 'in', min: 24, max: 70, step: 0.5 },
+  { key: 'waist', label: 'Waist', unit: 'in', min: 18, max: 60, step: 0.5 },
+  { key: 'hips', label: 'Hips', unit: 'in', min: 24, max: 70, step: 0.5 },
+  { key: 'inseam', label: 'Inseam', unit: 'in', min: 20, max: 40, step: 0.5 },
+  { key: 'sleeve', label: 'Sleeve', unit: 'in', min: 18, max: 32, step: 0.5 },
 ];
 
 const defaultMeasurements = {
@@ -28,27 +29,103 @@ const defaultMeasurements = {
 
 const MAX_GARMENT_PROMPT_LENGTH = 450;
 
+const garmentOptions = ['Suit', 'Dress', 'Blazer', 'Shirt', 'Skirt Set', 'Hoodie'];
+const silhouetteOptions = ['fitted', 'tailored', 'relaxed', 'oversized', 'flowing'];
+const sleeveOptions = ['sleeveless', 'short', 'three-quarter', 'full'];
+const materialOptions = ['cotton', 'linen', 'denim', 'wool', 'silk', 'satin', 'fleece'];
 
-function HistoryCard({ item, isActive, onSelect, onShowDetails }) {
-  const config = item.outfit_config;
+const promptPresets = [
+  'Structured navy tailoring with precise shoulders and clean luxury finishing.',
+  'Soft ivory draped set with elegant movement and understated premium detailing.',
+  'Relaxed charcoal street-luxury silhouette with elevated seam lines and comfort volume.',
+];
+
+function SectionCard({ title, subtitle, children }) {
+  return (
+    <section className="rounded-[26px] border border-white/60 bg-white/60 p-4 shadow-[0_18px_50px_rgba(18,18,18,0.07)] backdrop-blur-xl">
+      <div>
+        <h2 className="text-[1.8rem] leading-none text-[#121212]">{title}</h2>
+        {subtitle && <p className="mt-2 text-sm leading-6 text-[#525d6f]">{subtitle}</p>}
+      </div>
+      <div className="mt-4">{children}</div>
+    </section>
+  );
+}
+
+function MetricChip({ label, value }) {
+  return (
+    <div className="rounded-full border border-white/60 bg-white/70 px-3 py-2 text-xs text-[#525d6f]">
+      <span className="mr-2 font-semibold uppercase tracking-[0.18em] text-[#667085]">{label}</span>
+      <span className="font-semibold text-[#121212]">{value}</span>
+    </div>
+  );
+}
+
+function SegmentedControl({ label, options, value, onChange, compact = false }) {
+  return (
+    <div>
+      <div className="mb-2 text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-[#667085]">{label}</div>
+      <div className={`flex flex-wrap gap-2 ${compact ? 'text-xs' : 'text-sm'}`}>
+        {options.map((option) => {
+          const active = value === option;
+          return (
+            <button
+              key={option}
+              type="button"
+              onClick={() => onChange(option)}
+              className={`rounded-full px-4 py-2 font-semibold capitalize transition ${
+                active
+                  ? 'bg-[#1f3152] text-white shadow-[0_12px_30px_rgba(31,49,82,0.22)]'
+                  : 'bg-white/75 text-[#525d6f] hover:bg-white hover:text-[#121212]'
+              }`}
+            >
+              {option.replace('-', ' ')}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function MeasurementControl({ field, value, onChange }) {
+  const normalizedProgress = ((Number(value) - field.min) / (field.max - field.min)) * 100;
 
   return (
-    <div
-      className={`rounded-xl border p-4 text-left transition-all flex flex-col justify-between h-full ${isActive ? 'border-stone-900 bg-stone-900 text-white shadow-lg' : 'border-stone-200 bg-white hover:border-stone-400'}`}
-    >
-      <button className="flex-1 text-left" onClick={onSelect}>
-        <p className="text-sm font-semibold">{config?.label || 'Saved Look'}</p>
-        <p className={`text-xs mt-1 ${isActive ? 'text-stone-300' : 'text-stone-500'}`}>
-          {item.generated_at ? new Date(item.generated_at).toLocaleDateString() : 'Just now'}
-        </p>
-      </button>
-      
-      <button 
-        onClick={(e) => { e.stopPropagation(); onShowDetails(item); }} 
-        className={`mt-4 text-xs font-semibold self-start border rounded px-2 py-1 ${isActive ? 'border-stone-700 text-stone-200 hover:bg-stone-800' : 'border-stone-200 text-stone-600 hover:bg-stone-50'}`}
-      >
-        View Details
-      </button>
+    <div className="rounded-[22px] border border-white/60 bg-white/70 p-3 transition hover:bg-white/85">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="text-[0.7rem] font-semibold uppercase tracking-[0.2em] text-[#667085]">{field.label}</div>
+          <div className="mt-1 text-lg font-semibold text-[#121212]">
+            {value}
+            <span className="ml-1 text-xs uppercase tracking-[0.18em] text-[#96a0ad]">{field.unit}</span>
+          </div>
+        </div>
+        <input
+          type="number"
+          min={field.min}
+          max={field.max}
+          step={field.step}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className="w-20 rounded-2xl border border-[#e7ddd0] bg-[#f8f4ee] px-3 py-2 text-right text-sm font-semibold text-[#121212] outline-none transition focus:border-[#1f3152]"
+        />
+      </div>
+
+      <div className="mt-3">
+        <input
+          type="range"
+          min={field.min}
+          max={field.max}
+          step={field.step}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className="atelier-slider"
+        />
+        <div className="mt-2 h-1.5 rounded-full bg-[#eee6dc]">
+          <div className="h-1.5 rounded-full bg-[#1f3152] transition-[width] duration-300" style={{ width: `${Math.max(0, Math.min(normalizedProgress, 100))}%` }} />
+        </div>
+      </div>
     </div>
   );
 }
@@ -58,24 +135,26 @@ export default function Dashboard() {
   const [measurements, setMeasurements] = useState(defaultMeasurements);
   const [prompt, setPrompt] = useState('');
   const [descriptor, setDescriptor] = useState('');
-  const [fitSummary, setFitSummary] = useState('balanced proportions');
+  const [fitSummary, setFitSummary] = useState('Balanced proportions');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [history, setHistory] = useState([]);
-  const [activeGenerationId, setActiveGenerationId] = useState(null);
+  const [lookCount, setLookCount] = useState(0);
   const [activeOutfitConfig, setActiveOutfitConfig] = useState(null);
   const [activeModelUrl, setActiveModelUrl] = useState(null);
   const [sketchImage, setSketchImage] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
-  const [detailsModalItem, setDetailsModalItem] = useState(null);
-
-  // Explicit Garment Properties
   const [garmentType, setGarmentType] = useState('Suit');
   const [silhouette, setSilhouette] = useState('tailored');
   const [sleeveLength, setSleeveLength] = useState('full');
   const [material, setMaterial] = useState('wool');
-  const [primaryColor, setPrimaryColor] = useState('#1e3a8a');
-  const [accentColor, setAccentColor] = useState('#fbbf24');
+  const [primaryColor, setPrimaryColor] = useState('#1f3152');
+  const [accentColor, setAccentColor] = useState('#d8c7af');
   const [details, setDetails] = useState({ embroidery: false, slit: false, belt: false });
+  const [targetGender, setTargetGender] = useState(user?.defaultCustomerGender || user?.gender || 'male');
+  const [openGroups, setOpenGroups] = useState({
+    measurements: true,
+    prompt: true,
+    styling: true,
+  });
 
   useEffect(() => {
     const profile = buildMeasurementProfile(measurements);
@@ -83,18 +162,39 @@ export default function Dashboard() {
   }, [measurements]);
 
   useEffect(() => {
-    if (!user?.token) return;
+    setTargetGender(user?.defaultCustomerGender || user?.gender || 'male');
+  }, [user?.defaultCustomerGender, user?.gender]);
 
+  useEffect(() => {
     if (!user?.token) return;
 
     axios.get('/designs')
-      .then((res) => {
-        const records = res.data?.data || [];
-        setHistory(records);
-        // Do not auto-select the first item; show default avatar instead.
+      .then((response) => {
+        const records = response.data?.data || [];
+        setLookCount(records.length);
       })
-      .catch((error) => console.error('Failed fetching history:', error));
+      .catch((error) => console.error('Failed fetching look count:', error));
   }, [user]);
+
+  const measurementOverview = useMemo(() => {
+    return [
+      `Height ${measurements.height}cm`,
+      `Chest ${measurements.chest}in`,
+      `Waist ${measurements.waist}in`,
+      `Hips ${measurements.hips}in`,
+    ];
+  }, [measurements]);
+
+  const currentSummary = activeOutfitConfig || {
+    label: 'Studio Preview',
+    garmentType,
+    silhouette,
+    material,
+    sleeveLength,
+    primaryColor,
+    accentColor,
+  };
+  const effectiveTargetGender = user?.role === 'tailor' ? targetGender : user?.gender || 'male';
 
   const updateMeasurement = (key, value) => {
     setMeasurements((current) => ({
@@ -105,15 +205,18 @@ export default function Dashboard() {
 
   const handleImageUpload = (event) => {
     const file = event.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setSketchImage(reader.result);
-      };
-      reader.readAsDataURL(file);
-    } else {
+    if (!file) {
       setSketchImage(null);
+      return;
     }
+
+    const reader = new FileReader();
+    reader.onloadend = () => setSketchImage(reader.result);
+    reader.readAsDataURL(file);
+  };
+
+  const toggleGroup = (groupKey) => {
+    setOpenGroups((current) => ({ ...current, [groupKey]: !current[groupKey] }));
   };
 
   const handleGenerate = async () => {
@@ -143,327 +246,282 @@ export default function Dashboard() {
         primaryColor,
         accentColor,
         detailFlags: details,
+        targetGender: effectiveTargetGender,
       });
 
       const generation = response.data.data;
-      setHistory((current) => [generation, ...current]);
-      setActiveGenerationId(generation.id);
       setActiveOutfitConfig(generation.outfit_config);
       setActiveModelUrl(generation.render_url);
+      setLookCount((current) => current + 1);
     } catch (error) {
       console.error(error);
-      const msg = error.response?.data?.error || error.response?.data?.details || 'Failed to build try-on preview. An error occurred on the server.';
+      const msg = error.response?.data?.error || error.response?.data?.details || 'Failed to build try-on preview.';
       setErrorMsg(msg);
     } finally {
       setIsGenerating(false);
     }
   };
 
-  const selectHistoryItem = (item) => {
-    setActiveGenerationId(item.id);
-    setActiveOutfitConfig(item.outfit_config);
-    setActiveModelUrl(item.render_url);
-  };
-
-
-
   return (
-    <div className="min-h-screen bg-[#f3efe7] px-4 py-6 md:px-8 relative">
+    <div className="min-h-screen bg-transparent px-4 py-4 md:px-6">
       {isGenerating && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/60 backdrop-blur-sm">
-          <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full text-center flex flex-col items-center">
-            <div className="w-16 h-16 border-4 border-stone-200 border-t-stone-900 rounded-full animate-spin mb-6"></div>
-            <h3 className="text-xl font-bold text-stone-900 mb-2">Crafting Your Design</h3>
-            <p className="text-sm text-stone-500">
-              Our AI is weaving the fabric and taking measurements. This may take a moment to generate a high-quality 3D render...
-            </p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#121212]/40 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-[28px] border border-white/30 bg-white/80 p-7 text-center shadow-[0_30px_90px_rgba(18,18,18,0.18)] backdrop-blur-2xl">
+            <div className="mx-auto h-14 w-14 rounded-full border-4 border-[#d8c7af]/45 border-t-[#1f3152] animate-spin" />
+            <h3 className="mt-5 text-[1.9rem] leading-none text-[#121212]">Generating look</h3>
+            <p className="mt-3 text-sm leading-7 text-[#525d6f]">Atelier is building the mannequin render and garment presentation.</p>
           </div>
         </div>
       )}
 
-      <header className="mb-8 flex flex-col gap-4 rounded-3xl border border-stone-200 bg-white px-6 py-5 shadow-sm md:flex-row md:items-center md:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-stone-500">RHEMS UNISEX MVP</p>
-          <h1 className="mt-2 text-3xl font-bold text-stone-900">3D Try-On Studio</h1>
-          <p className="mt-2 max-w-2xl text-sm text-stone-600">
-            Measurements drive a neutral avatar form. The prompt resolves into a local garment configuration for a unisex 3D try-on preview.
-          </p>
-        </div>
-        <div className="rounded-2xl bg-stone-900 px-4 py-3 text-sm text-stone-100">
-          <div className="font-semibold">Signed in</div>
-          <div className="mt-1 text-xs text-stone-300">{user?.id}</div>
-        </div>
-      </header>
-
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <aside className="space-y-6">
-          <section className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-xl font-semibold text-stone-900">Body Measurements</h2>
-                <p className="mt-1 text-sm text-stone-500">These values shape the base avatar proportions without requiring a gender-specific pipeline.</p>
-              </div>
+      <div className="mx-auto max-w-[1580px]">
+        <AppHeader
+          title="Studio"
+          subtitle="Build a look with guided controls. Measurements on the left, garment styling on the right, and the 3D playground at the center."
+          rightSlot={
+            <div className="flex flex-wrap gap-2">
+              <MetricChip label="Looks" value={String(lookCount).padStart(2, '0')} />
+              <MetricChip label="Prompt" value={`${prompt.length}/${MAX_GARMENT_PROMPT_LENGTH}`} />
+              <MetricChip label="User" value={user?.username || '--'} />
+              <MetricChip label="Role" value={user?.role || '--'} />
             </div>
+          }
+        />
 
-            <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-1">
-              {measurementFields.map((field) => (
-                <label key={field.key} className="block">
-                  <span className="mb-1 block text-sm font-medium text-stone-700">
-                    {field.label} ({field.unit})
-                  </span>
-                  <input
-                    type="number"
-                    min={field.min}
-                    max={field.max}
-                    value={measurements[field.key]}
-                    onChange={(event) => updateMeasurement(field.key, event.target.value)}
-                    className="w-full rounded-xl border border-stone-300 px-3 py-2 text-sm outline-none transition focus:border-stone-900 focus:ring-2 focus:ring-stone-200"
-                  />
-                </label>
-              ))}
-            </div>
-
-            <div className="mt-5 rounded-2xl bg-stone-100 p-4 text-sm text-stone-700">
-              <div className="font-semibold text-stone-900">Fit notes</div>
-              <p className="mt-2">{fitSummary}</p>
-            </div>
-          </section>
-
-          <section className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-semibold text-stone-900">Garment Intent</h2>
-            <p className="mt-1 text-sm text-stone-500">Provide a detailed description of the garment and optionally upload a reference sketch.</p>
-            
-            {errorMsg && (
-              <div className="mt-4 bg-red-50 text-red-600 p-3 rounded-xl mb-4 text-sm font-medium border border-red-200">
-                {errorMsg}
-              </div>
-            )}
-
-
-            <div className="mt-4">
-              <label className="mb-1 block text-sm font-medium text-stone-700">Garment Type</label>
-              <input
-                type="text"
-                value={garmentType}
-                onChange={(e) => setGarmentType(e.target.value)}
-                placeholder="e.g. Double-breasted jacket, Evening gown..."
-                className="w-full rounded-xl border border-stone-300 px-4 py-2 text-sm outline-none transition focus:border-stone-900 focus:ring-2 focus:ring-stone-200"
-              />
-            </div>
-
-            <div className="mt-4 grid grid-cols-2 gap-4">
-              <div>
-                <label className="mb-1 block text-sm font-medium text-stone-700">Silhouette</label>
-                <select value={silhouette} onChange={(e) => setSilhouette(e.target.value)} className="w-full rounded-xl border border-stone-300 px-3 py-2 text-sm outline-none transition focus:border-stone-900">
-                  <option value="fitted">Fitted</option>
-                  <option value="tailored">Tailored</option>
-                  <option value="relaxed">Relaxed</option>
-                  <option value="oversized">Oversized</option>
-                  <option value="flowing">Flowing</option>
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-stone-700">Sleeve Length</label>
-                <select value={sleeveLength} onChange={(e) => setSleeveLength(e.target.value)} className="w-full rounded-xl border border-stone-300 px-3 py-2 text-sm outline-none transition focus:border-stone-900">
-                  <option value="sleeveless">Sleeveless</option>
-                  <option value="short">Short</option>
-                  <option value="three-quarter">3/4 Length</option>
-                  <option value="full">Full</option>
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-stone-700">Material</label>
-                <select value={material} onChange={(e) => setMaterial(e.target.value)} className="w-full rounded-xl border border-stone-300 px-3 py-2 text-sm outline-none transition focus:border-stone-900">
-                  <option value="cotton">Cotton</option>
-                  <option value="linen">Linen</option>
-                  <option value="denim">Denim</option>
-                  <option value="wool">Wool</option>
-                  <option value="silk">Silk</option>
-                  <option value="satin">Satin</option>
-                  <option value="fleece">Fleece</option>
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-stone-700">Colors</label>
-                <div className="flex gap-2">
-                  <input type="color" value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} className="h-9 w-1/2 cursor-pointer rounded border border-stone-300 bg-white p-1" title="Primary Color" />
-                  <input type="color" value={accentColor} onChange={(e) => setAccentColor(e.target.value)} className="h-9 w-1/2 cursor-pointer rounded border border-stone-300 bg-white p-1" title="Accent Color" />
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-4 flex gap-4">
-              <label className="flex items-center gap-2 text-sm text-stone-700">
-                <input type="checkbox" checked={details.embroidery} onChange={(e) => setDetails({ ...details, embroidery: e.target.checked })} className="rounded text-stone-900 focus:ring-stone-900" />
-                Embroidery
-              </label>
-              <label className="flex items-center gap-2 text-sm text-stone-700">
-                <input type="checkbox" checked={details.slit} onChange={(e) => setDetails({ ...details, slit: e.target.checked })} className="rounded text-stone-900 focus:ring-stone-900" />
-                Slit
-              </label>
-              <label className="flex items-center gap-2 text-sm text-stone-700">
-                <input type="checkbox" checked={details.belt} onChange={(e) => setDetails({ ...details, belt: e.target.checked })} className="rounded text-stone-900 focus:ring-stone-900" />
-                Belt
-              </label>
-            </div>
-
-            <div className="mt-4">
-              <label className="mb-1 block text-sm font-medium text-stone-700">Body Descriptor</label>
-              <input
-                type="text"
-                value={descriptor}
-                onChange={(e) => setDescriptor(e.target.value)}
-                placeholder="e.g. Athletic, Plus Size, Hourglass..."
-                className="w-full rounded-xl border border-stone-300 px-4 py-2 text-sm outline-none transition focus:border-stone-900 focus:ring-2 focus:ring-stone-200"
-              />
-            </div>
-
-            <div className="mt-4">
-              <label className="mb-1 block text-sm font-medium text-stone-700">Garment Prompt</label>
-              <textarea
-                className="h-32 w-full resize-none rounded-2xl border border-stone-300 px-4 py-3 text-sm outline-none transition focus:border-stone-900 focus:ring-2 focus:ring-stone-200"
-                value={prompt}
-                onChange={(event) => setPrompt(event.target.value)}
-                maxLength={MAX_GARMENT_PROMPT_LENGTH}
-                placeholder="e.g. A tailored double-breasted suit jacket in navy blue wool with gold buttons and structured shoulders..."
-              />
-              <div className="mt-1 text-right text-xs text-stone-500">
-                {prompt.length}/{MAX_GARMENT_PROMPT_LENGTH}
-              </div>
-            </div>
-
-            <div className="mt-4">
-              <label className="mb-1 block text-sm font-medium text-stone-700">Optional: Upload a sketch or reference image</label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleImageUpload}
-                className="w-full text-sm text-stone-500 file:mr-4 file:rounded-xl file:border-0 file:bg-stone-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-stone-700 hover:file:bg-stone-200"
-              />
-              {sketchImage && (
-                <div className="mt-3">
-                  <img src={sketchImage} alt="Sketch preview" className="h-24 w-24 rounded-lg object-cover border border-stone-200" />
-                </div>
-              )}
-            </div>
-
-            <button
-              type="button"
-              onClick={handleGenerate}
-              disabled={isGenerating}
-              className="mt-4 w-full rounded-2xl bg-stone-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-stone-700 disabled:cursor-not-allowed disabled:bg-stone-400"
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[320px_minmax(0,1fr)_340px]">
+          <aside className="order-2 space-y-5 xl:order-1">
+            <SectionCard
+              title="Measurements"
+              subtitle="Adjust with sliders first, then fine-tune values directly."
             >
-              {isGenerating ? 'Generating Try-On Configuration...' : 'Generate 3D Try-On Look'}
-            </button>
-          </section>
-        </aside>
+              <button
+                type="button"
+                onClick={() => toggleGroup('measurements')}
+                className="mb-4 flex w-full items-center justify-between rounded-[20px] bg-[#f6f0e7] px-4 py-3 text-left text-sm font-semibold text-[#121212] transition hover:bg-[#efe5d7]"
+              >
+                <span>Body controls</span>
+                <span className="text-[#667085]">{openGroups.measurements ? 'Hide' : 'Show'}</span>
+              </button>
 
-        <main className="space-y-6">
-          <section className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-            <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-              <div>
-                <h2 className="text-xl font-semibold text-stone-900">Live Outfit Preview</h2>
-                <p className="mt-1 text-sm text-stone-500">
-                  This MVP renders a measurement-shaped avatar and a local garment mesh driven by the generated unisex outfit config.
-                </p>
-              </div>
-              {activeOutfitConfig && (
-                <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700">
-                  <div className="font-semibold text-stone-900">{activeOutfitConfig.label}</div>
-                  <div className="mt-1">
-                    {activeOutfitConfig.silhouette} | {activeOutfitConfig.material} | {activeOutfitConfig.sleeveLength}
-                  </div>
-                </div>
-              )}
-            </div>
-            <ThreeModel measurements={measurements} outfitConfig={activeOutfitConfig} modelUrl={activeModelUrl} />
-          </section>
-
-          <section className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-xl font-semibold text-stone-900">Saved Looks</h2>
-                <p className="mt-1 text-sm text-stone-500">Each saved item stores an outfit config that can be replayed on the current avatar.</p>
-              </div>
-              <div className="text-xs font-semibold uppercase tracking-[0.25em] text-stone-400">
-                {history.length} looks
-              </div>
-            </div>
-
-            {history.length > 0 ? (
-              <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-4">
-                {history.map((item) => (
-                  <HistoryCard
-                    key={item.id}
-                    item={item}
-                    isActive={item.id === activeGenerationId}
-                    onSelect={() => selectHistoryItem(item)}
-                    onShowDetails={(i) => setDetailsModalItem(i)}
+              <div className={`grid gap-3 overflow-hidden transition-all duration-300 ${openGroups.measurements ? 'max-h-[1200px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                {measurementFields.map((field) => (
+                  <MeasurementControl
+                    key={field.key}
+                    field={field}
+                    value={measurements[field.key]}
+                    onChange={(value) => updateMeasurement(field.key, value)}
                   />
                 ))}
               </div>
-            ) : (
-              <div className="mt-4 rounded-2xl border border-dashed border-stone-300 bg-stone-50 p-6 text-sm text-stone-500">
-                No saved looks yet. Generate your first outfit configuration to populate history.
-              </div>
-            )}
-          </section>
-        </main>
-      </div>
+            </SectionCard>
 
-      {detailsModalItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/60 backdrop-blur-sm p-4">
-          <div className="bg-white p-6 rounded-3xl shadow-2xl max-w-lg w-full relative">
-            <button 
-              onClick={() => setDetailsModalItem(null)}
-              className="absolute top-4 right-4 text-stone-400 hover:text-stone-900 transition font-bold text-xl leading-none"
+            <SectionCard
+              title="Fit reading"
+              subtitle="A quick summary of how the current body proportions are being interpreted."
             >
-              &times;
-            </button>
-            <h3 className="text-xl font-bold text-stone-900 mb-2">
-              {detailsModalItem.outfit_config?.label || 'Saved Look'}
-            </h3>
-            <p className="text-xs text-stone-500 mb-6">
-              Generated on {detailsModalItem.generated_at ? new Date(detailsModalItem.generated_at).toLocaleDateString() : 'Just now'}
-            </p>
-            
-            <div className="space-y-4 text-sm text-stone-700">
-              <div className="bg-stone-50 p-4 rounded-xl border border-stone-200">
-                <p className="font-semibold text-stone-900 mb-1">Prompt</p>
-                <p className="italic">"{detailsModalItem.prompt_text}"</p>
+              <div className="rounded-[22px] border border-[#d8c7af]/70 bg-[#f6f0e7]/90 p-4">
+                <div className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-[#667085]">Current fit notes</div>
+                <p className="mt-3 text-sm leading-7 text-[#121212]">{fitSummary}</p>
               </div>
-              
-              <div className="grid grid-cols-2 gap-4">
+              <div className="mt-4 flex flex-wrap gap-2">
+                {measurementOverview.map((item) => (
+                  <span key={item} className="rounded-full bg-white/75 px-3 py-2 text-xs font-semibold text-[#525d6f]">
+                    {item}
+                  </span>
+                ))}
+              </div>
+            </SectionCard>
+          </aside>
+
+          <main className="order-1 xl:order-2">
+            <div className="rounded-[30px] border border-white/55 bg-white/45 p-4 shadow-[0_24px_80px_rgba(18,18,18,0.09)] backdrop-blur-xl">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="font-semibold text-stone-900 mb-1">Silhouette</p>
-                  <p className="capitalize">{detailsModalItem.outfit_config?.silhouette}</p>
+                  <div className="text-[0.68rem] font-semibold uppercase tracking-[0.3em] text-[#667085]">3D Render Playground</div>
+                  <h2 className="mt-2 text-[2.6rem] leading-none text-[#121212]">Preview Stage</h2>
                 </div>
-                <div>
-                  <p className="font-semibold text-stone-900 mb-1">Material</p>
-                  <p className="capitalize">{detailsModalItem.outfit_config?.material}</p>
-                </div>
-                <div>
-                  <p className="font-semibold text-stone-900 mb-1">Garment Type</p>
-                  <p className="capitalize">{detailsModalItem.outfit_config?.garmentType}</p>
-                </div>
-                <div>
-                  <p className="font-semibold text-stone-900 mb-1">Sleeve Length</p>
-                  <p className="capitalize">{detailsModalItem.outfit_config?.sleeveLength}</p>
+                <div className="flex flex-wrap gap-2">
+                  <MetricChip label="Type" value={currentSummary.garmentType || '--'} />
+                  <MetricChip label="Fabric" value={currentSummary.material || '--'} />
+                  <MetricChip label="Shape" value={currentSummary.silhouette || '--'} />
+                  <MetricChip label="Avatar" value={effectiveTargetGender} />
                 </div>
               </div>
-              
-              <div className="pt-4 flex justify-end">
-                <button 
-                  onClick={() => setDetailsModalItem(null)}
-                  className="bg-stone-900 text-white px-4 py-2 rounded-xl font-semibold hover:bg-stone-700 transition"
-                >
-                  Close
-                </button>
+
+              <ThreeModel
+                measurements={measurements}
+                outfitConfig={activeOutfitConfig}
+                modelUrl={activeModelUrl}
+                avatarGender={effectiveTargetGender}
+              />
+
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                <div className="rounded-[22px] border border-white/60 bg-white/65 p-4">
+                  <div className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-[#667085]">Active look</div>
+                  <div className="mt-2 text-lg font-semibold text-[#121212]">{currentSummary.label}</div>
+                  <div className="mt-1 text-sm capitalize text-[#525d6f]">{currentSummary.sleeveLength || '--'} sleeves</div>
+                </div>
+                <div className="rounded-[22px] border border-white/60 bg-white/65 p-4">
+                  <div className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-[#667085]">Color palette</div>
+                  <div className="mt-3 flex items-center gap-3">
+                    <span className="h-10 w-10 rounded-full border border-white/70" style={{ backgroundColor: currentSummary.primaryColor || primaryColor }} />
+                    <span className="h-10 w-10 rounded-full border border-white/70" style={{ backgroundColor: currentSummary.accentColor || accentColor }} />
+                  </div>
+                </div>
+                <div className="rounded-[22px] border border-white/60 bg-white/65 p-4">
+                  <div className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-[#667085]">Saved looks</div>
+                  <div className="mt-2 text-lg font-semibold text-[#121212]">{lookCount}</div>
+                  <div className="mt-1 text-sm text-[#525d6f]">Open the Saved Looks page to review and replay them.</div>
+                </div>
               </div>
             </div>
-          </div>
+          </main>
+
+          <aside className="order-3 space-y-5">
+            <SectionCard
+              title="Garment Brief"
+              subtitle="Use guided selectors instead of dense forms. Start broad, then refine."
+            >
+              {errorMsg && (
+                <div className="mb-4 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {errorMsg}
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => toggleGroup('styling')}
+                className="mb-4 flex w-full items-center justify-between rounded-[20px] bg-[#f6f0e7] px-4 py-3 text-left text-sm font-semibold text-[#121212] transition hover:bg-[#efe5d7]"
+              >
+                <span>Styling controls</span>
+                <span className="text-[#667085]">{openGroups.styling ? 'Hide' : 'Show'}</span>
+              </button>
+
+              <div className={`space-y-4 overflow-hidden transition-all duration-300 ${openGroups.styling ? 'max-h-[1600px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                {user?.role === 'tailor' && (
+                  <SegmentedControl
+                    label="Customer gender"
+                    options={['male', 'female']}
+                    value={targetGender}
+                    onChange={setTargetGender}
+                    compact
+                  />
+                )}
+                <SegmentedControl label="Garment type" options={garmentOptions} value={garmentType} onChange={setGarmentType} />
+                <SegmentedControl label="Silhouette" options={silhouetteOptions} value={silhouette} onChange={setSilhouette} compact />
+                <SegmentedControl label="Sleeve length" options={sleeveOptions} value={sleeveLength} onChange={setSleeveLength} compact />
+                <SegmentedControl label="Material" options={materialOptions} value={material} onChange={setMaterial} compact />
+
+                <div>
+                  <div className="mb-2 text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-[#667085]">Design details</div>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { key: 'embroidery', label: 'Embroidery' },
+                      { key: 'slit', label: 'Slit' },
+                      { key: 'belt', label: 'Belt' },
+                    ].map((option) => {
+                      const active = details[option.key];
+                      return (
+                        <button
+                          key={option.key}
+                          type="button"
+                          onClick={() => setDetails((current) => ({ ...current, [option.key]: !current[option.key] }))}
+                          className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                            active ? 'bg-[#121212] text-white' : 'bg-white/75 text-[#525d6f] hover:bg-white hover:text-[#121212]'
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="rounded-[20px] border border-white/60 bg-white/70 p-3">
+                    <div className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-[#667085]">Primary color</div>
+                    <input type="color" value={primaryColor} onChange={(event) => setPrimaryColor(event.target.value)} className="mt-3 h-11 w-full cursor-pointer rounded-2xl border border-[#ece2d5] bg-transparent p-1" />
+                  </label>
+                  <label className="rounded-[20px] border border-white/60 bg-white/70 p-3">
+                    <div className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-[#667085]">Accent color</div>
+                    <input type="color" value={accentColor} onChange={(event) => setAccentColor(event.target.value)} className="mt-3 h-11 w-full cursor-pointer rounded-2xl border border-[#ece2d5] bg-transparent p-1" />
+                  </label>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => toggleGroup('prompt')}
+                className="mb-4 mt-5 flex w-full items-center justify-between rounded-[20px] bg-[#1f3152] px-4 py-3 text-left text-sm font-semibold text-white transition hover:bg-[#16243c]"
+              >
+                <span>Prompt brief</span>
+                <span className="text-white/70">{openGroups.prompt ? 'Hide' : 'Show'}</span>
+              </button>
+
+              <div className={`space-y-4 overflow-hidden transition-all duration-300 ${openGroups.prompt ? 'max-h-[1200px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                <div className="rounded-[22px] border border-white/60 bg-white/70 p-4">
+                  <div className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-[#667085]">Body descriptor</div>
+                  <input
+                    type="text"
+                    value={descriptor}
+                    onChange={(event) => setDescriptor(event.target.value)}
+                    placeholder="Athletic, elongated, hourglass, relaxed..."
+                    className="mt-3 w-full rounded-[18px] border border-[#ece2d5] bg-[#faf6f1] px-4 py-3 text-sm text-[#121212] outline-none transition focus:border-[#1f3152]"
+                  />
+                </div>
+
+                <div className="rounded-[22px] border border-white/60 bg-white/70 p-4">
+                  <div className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-[#667085]">Garment description</div>
+                  <textarea
+                    value={prompt}
+                    onChange={(event) => setPrompt(event.target.value)}
+                    maxLength={MAX_GARMENT_PROMPT_LENGTH}
+                    placeholder="Describe the garment, finish, silhouette mood and key styling intent."
+                    className="mt-3 h-32 w-full resize-none rounded-[18px] border border-[#ece2d5] bg-[#faf6f1] px-4 py-3 text-sm leading-7 text-[#121212] outline-none transition focus:border-[#1f3152]"
+                  />
+                  <div className="mt-3 flex items-center justify-between text-xs text-[#667085]">
+                    <span>Reserved prompt space remains for mannequin and fit instructions.</span>
+                    <span>{prompt.length}/{MAX_GARMENT_PROMPT_LENGTH}</span>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {promptPresets.map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setPrompt(preset)}
+                      className="rounded-full bg-white/75 px-4 py-2 text-xs font-semibold text-[#525d6f] transition hover:bg-white hover:text-[#121212]"
+                    >
+                      Use preset
+                    </button>
+                  ))}
+                </div>
+
+                <div className="rounded-[22px] border border-dashed border-[#d8c7af] bg-[#f6f0e7]/80 p-4">
+                  <div className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-[#667085]">Reference sketch</div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="mt-3 w-full text-sm text-[#525d6f] file:mr-4 file:rounded-full file:border-0 file:bg-[#121212] file:px-4 file:py-2 file:font-semibold file:text-white hover:file:bg-[#1f3152]"
+                  />
+                  {sketchImage && <img src={sketchImage} alt="Sketch preview" className="mt-4 h-24 w-full rounded-[18px] object-cover" />}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleGenerate}
+                  disabled={isGenerating}
+                  className="w-full rounded-full bg-[#121212] px-6 py-4 text-sm font-semibold uppercase tracking-[0.28em] text-white transition hover:bg-[#1f3152] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isGenerating ? 'Generating...' : 'Generate Look'}
+                </button>
+              </div>
+            </SectionCard>
+          </aside>
         </div>
-      )}
+      </div>
     </div>
   );
 }

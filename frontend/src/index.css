@@ -1,10 +1,110 @@
+@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap");
 @import "tailwindcss";
 
 @theme {
-  --color-primary: #141414;
-  --color-accent: #6366f1; /* Indigo 500 */
+  --color-atelier-black: #121212;
+  --color-atelier-navy: #1f3152;
+  --color-atelier-beige: #d8c7af;
+  --color-atelier-ivory: #f6f0e7;
+  --color-atelier-gray: #96a0ad;
+  --color-atelier-slate: #525d6f;
+}
+
+:root {
+  font-family: "Manrope", sans-serif;
+  color: #121212;
+  background:
+    radial-gradient(circle at top left, rgba(216, 199, 175, 0.4), transparent 26%),
+    radial-gradient(circle at top right, rgba(31, 49, 82, 0.16), transparent 24%),
+    linear-gradient(180deg, #f8f2ea 0%, #ece3d7 48%, #f3ece4 100%);
+  color-scheme: light;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  @apply bg-gray-50 text-gray-900;
+  min-height: 100vh;
+  margin: 0;
+  background:
+    radial-gradient(circle at top left, rgba(216, 199, 175, 0.4), transparent 26%),
+    radial-gradient(circle at top right, rgba(31, 49, 82, 0.16), transparent 24%),
+    linear-gradient(180deg, #f8f2ea 0%, #ece3d7 48%, #f3ece4 100%);
+  color: #121212;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: "Cormorant Garamond", serif;
+  letter-spacing: -0.02em;
+}
+
+::selection {
+  background: rgba(31, 49, 82, 0.16);
+  color: #121212;
+}
+
+.atelier-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(31, 49, 82, 0.95), rgba(216, 199, 175, 0.9));
+  outline: none;
+}
+
+.atelier-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 2px solid #1f3152;
+  box-shadow: 0 10px 24px rgba(18, 18, 18, 0.16);
+  cursor: pointer;
+}
+
+.atelier-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 2px solid #1f3152;
+  box-shadow: 0 10px 24px rgba(18, 18, 18, 0.16);
+  cursor: pointer;
+}
+
+.atelier-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.atelier-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.atelier-scroll::-webkit-scrollbar-thumb {
+  background: rgba(31, 49, 82, 0.2);
+  border-radius: 999px;
 }

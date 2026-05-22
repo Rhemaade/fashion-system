@@ -4,9 +4,57 @@ const jwt = require('jsonwebtoken');
 
 const prisma = new PrismaClient();
 
+function normalizeRole(role) {
+  const normalized = String(role || '').trim().toLowerCase();
+  return ['user', 'tailor'].includes(normalized) ? normalized : null;
+}
+
+function normalizeGender(gender) {
+  const normalized = String(gender || '').trim().toLowerCase();
+  return ['male', 'female'].includes(normalized) ? normalized : null;
+}
+
+function sanitizeOptionalGender(gender) {
+  if (gender == null || gender === '') {
+    return null;
+  }
+
+  return normalizeGender(gender);
+}
+
+function buildAuthPayload(user) {
+  return {
+    userId: user.id,
+    username: user.username,
+    role: user.role,
+    gender: user.gender,
+  };
+}
+
+function buildAuthResponse(user, token) {
+  return {
+    id: user.id,
+    token,
+    user: {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      gender: user.gender,
+      defaultCustomerGender: user.default_customer_gender || null,
+    },
+  };
+}
+
 exports.register = async (req, res) => {
   try {
-    const { username, email, password } = req.body;
+    const { username, email, password, role, gender } = req.body;
+    const normalizedRole = normalizeRole(role);
+    const normalizedGender = normalizeGender(gender);
+
+    if (!normalizedRole || !normalizedGender) {
+      return res.status(400).json({ error: 'Role and gender are required.' });
+    }
 
     const existingUser = await prisma.user.findFirst({
       where: {
@@ -26,13 +74,16 @@ exports.register = async (req, res) => {
         username,
         email,
         password_hash,
+        role: normalizedRole,
+        gender: normalizedGender,
+        default_customer_gender: normalizedRole === 'tailor' ? normalizedGender : null,
       },
     });
 
-    const payload = { userId: user.id };
+    const payload = buildAuthPayload(user);
     const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1d' });
 
-    res.status(201).json({ id: user.id, token });
+    res.status(201).json(buildAuthResponse(user, token));
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Server error during registration' });
@@ -56,12 +107,127 @@ exports.login = async (req, res) => {
       return res.status(400).json({ error: 'Invalid credentials' });
     }
 
-    const payload = { userId: user.id };
-    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1d' });
+    const payload = buildAuthPayload(user);
+    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '12h' });
 
-    res.status(200).json({ id: user.id, token });
+    res.status(200).json(buildAuthResponse(user, token));
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Server error during login' });
+  }
+};
+
+exports.getCurrentUser = async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        role: true,
+        gender: true,
+        default_customer_gender: true,
+        created_at: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    return res.status(200).json({
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        gender: user.gender,
+        defaultCustomerGender: user.default_customer_gender || null,
+        createdAt: user.created_at,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Server error while fetching profile' });
+  }
+};
+
+exports.updateCurrentUser = async (req, res) => {
+  try {
+    const { username, gender, defaultCustomerGender } = req.body;
+    const currentUser = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+      select: {
+        id: true,
+        role: true,
+      },
+    });
+
+    if (!currentUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const data = {};
+
+    if (typeof username === 'string') {
+      const trimmedUsername = username.trim();
+      if (!trimmedUsername) {
+        return res.status(400).json({ error: 'Username cannot be empty.' });
+      }
+
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          username: trimmedUsername,
+          NOT: { id: currentUser.id },
+        },
+      });
+
+      if (existingUser) {
+        return res.status(400).json({ error: 'Username already exists.' });
+      }
+
+      data.username = trimmedUsername;
+    }
+
+    if (gender !== undefined) {
+      const normalizedGender = normalizeGender(gender);
+      if (!normalizedGender) {
+        return res.status(400).json({ error: 'A valid gender is required.' });
+      }
+      data.gender = normalizedGender;
+    }
+
+    if (defaultCustomerGender !== undefined) {
+      if (currentUser.role !== 'tailor') {
+        return res.status(400).json({ error: 'Only tailors can manage customer defaults.' });
+      }
+
+      const normalizedDefaultCustomerGender = sanitizeOptionalGender(defaultCustomerGender);
+      if (defaultCustomerGender !== null && !normalizedDefaultCustomerGender) {
+        return res.status(400).json({ error: 'A valid default customer gender is required.' });
+      }
+
+      data.default_customer_gender = normalizedDefaultCustomerGender;
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: currentUser.id },
+      data,
+    });
+
+    return res.status(200).json({
+      user: {
+        id: updatedUser.id,
+        username: updatedUser.username,
+        email: updatedUser.email,
+        role: updatedUser.role,
+        gender: updatedUser.gender,
+        defaultCustomerGender: updatedUser.default_customer_gender || null,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Server error while updating profile' });
   }
 };
