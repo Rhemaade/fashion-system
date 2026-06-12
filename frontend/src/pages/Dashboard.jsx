@@ -276,7 +276,7 @@ export default function Dashboard() {
 
       <div className="mx-auto max-w-[1580px]">
         <AppHeader
-          title="Studio"
+          title="Atelier"
           subtitle="Build a look with guided controls. Measurements on the left, garment styling on the right, and the 3D playground at the center."
           rightSlot={
             <div className="flex flex-wrap gap-2">
@@ -509,16 +509,16 @@ export default function Dashboard() {
                   {sketchImage && <img src={sketchImage} alt="Sketch preview" className="mt-4 h-24 w-full rounded-[18px] object-cover" />}
                 </div>
 
-                <button
+              </div>
+            </SectionCard>
+            <button
                   type="button"
                   onClick={handleGenerate}
                   disabled={isGenerating}
                   className="w-full rounded-full bg-[#121212] px-6 py-4 text-sm font-semibold uppercase tracking-[0.28em] text-white transition hover:bg-[#1f3152] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {isGenerating ? 'Generating...' : 'Generate Look'}
-                </button>
-              </div>
-            </SectionCard>
+              </button>
           </aside>
         </div>
       </div>

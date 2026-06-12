@@ -247,9 +247,11 @@ exports.generateDesign = async (req, res) => {
         replicateInput.image = image; // Base64 data URI
       }
 
+      console.log('Began generating at:', new Date().toISOString());
       const output = await replicate.run('tencent/hunyuan-3d-3.1', {
         input: replicateInput
       });
+      console.log('Finished generating at:', new Date().toISOString());
       console.log('Replicate output:', output);
       generatedFileOutput = extractGeneratedFileOutput(output);
       // Keep the URL fallback commented for later in case you switch back to URL-based handling.
