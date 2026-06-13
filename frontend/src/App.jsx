@@ -4,6 +4,8 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Looks from './pages/Looks';
 import Settings from './pages/Settings';
+import ForgotPassword from './pages/ForgotPassword';
+import UpdatePassword from './pages/UpdatePassword';
 
 function ProtectedRoute({ children }) {
   const { user } = useAuth();
@@ -17,6 +19,8 @@ function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/update-password" element={<UpdatePassword />} />
       <Route 
         path="/dashboard" 
         element={
