@@ -1,14 +1,16 @@
 import { useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContext'; // Brought back!
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import { supabase } from '../utils/superbaseClient'; // Adjust path as needed
+import api from '../utils/api'; // Assuming you kept the Axios interceptor for the /sync route
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login } = useAuth(); // Hooking back into your global state
   const navigate = useNavigate();
   const [isRegistering, setIsRegistering] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
+  
   const [formData, setFormData] = useState({
     username: '',
     email: '',
@@ -17,20 +19,73 @@ export default function Login() {
     gender: 'male',
   });
 
+  // Helper function to format Supabase user data into what your Context expects
+  const mapSupabaseUser = (supabaseUser) => {
+    return {
+      id: supabaseUser.id,
+      email: supabaseUser.email,
+      username: supabaseUser.user_metadata?.username,
+      role: supabaseUser.user_metadata?.role || 'user',
+      gender: supabaseUser.user_metadata?.gender || 'male',
+    };
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     setLoading(true);
     setErrorMsg('');
 
     try {
-      const endpoint = isRegistering ? '/auth/register' : '/auth/login';
-      const payload = isRegistering ? formData : { email: formData.email, password: formData.password };
-      const response = await axios.post(endpoint, payload);
-      login(response.data.token, response.data.user);
-      navigate('/dashboard');
+      if (isRegistering) {
+        // --- 1. SUPABASE SIGN UP ---
+        const { data, error } = await supabase.auth.signUp({
+          email: formData.email,
+          password: formData.password,
+          options: {
+            data: {
+              username: formData.username,
+              role: formData.role,
+              gender: formData.gender,
+            }
+          }
+        });
+
+        if (error) throw error;
+        
+        if (data.session) {
+          // --- 2. SYNC & UPDATE CONTEXT ---
+          await api.post('/auth/sync'); 
+          
+          // Inject into your AuthContext
+          const formattedUser = mapSupabaseUser(data.user);
+          login(data.session.access_token, formattedUser);
+          
+          navigate('/dashboard');
+        } else {
+          setErrorMsg('Registration successful! Please check your email to confirm your account.');
+        }
+
+      } else {
+        // --- 1. SUPABASE LOG IN ---
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: formData.email,
+          password: formData.password,
+        });
+
+        if (error) throw error;
+        
+        // --- 2. SYNC & UPDATE CONTEXT ---
+        await api.post('/auth/sync');
+
+        // Inject into your AuthContext
+        const formattedUser = mapSupabaseUser(data.user);
+        login(data.session.access_token, formattedUser);
+        
+        navigate('/dashboard');
+      }
     } catch (error) {
       console.error(error);
-      setErrorMsg(error.response?.data?.error || 'Network error. Make sure the server is running.');
+      setErrorMsg(error.message || 'An error occurred during authentication.');
     } finally {
       setLoading(false);
     }
@@ -50,7 +105,11 @@ export default function Login() {
         </p>
 
         {errorMsg && (
-          <div className="mt-5 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className={`mt-5 rounded-[20px] border px-4 py-3 text-sm ${
+            errorMsg.includes('successful') 
+              ? 'border-green-200 bg-green-50 text-green-700' 
+              : 'border-red-200 bg-red-50 text-red-700'
+          }`}>
             {errorMsg}
           </div>
         )}

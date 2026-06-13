@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import axios from 'axios';
+import axios from '../utils/api';
 import ThreeModel from '../components/ThreeModel';
 import { useAuth } from '../contexts/AuthContext';
 import AppHeader from '../components/AppHeader';

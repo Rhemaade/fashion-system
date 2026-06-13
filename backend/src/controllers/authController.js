@@ -46,6 +46,41 @@ function buildAuthResponse(user, token) {
   };
 }
 
+exports.syncUser = async (req, res) => {
+  try {
+    // req.user comes from the Supabase JWT authMiddleware we made earlier!
+    // console.log('Syncing user with Supabase data:', req.user);
+    const { userId, email, role, gender } = req.user;
+
+    // We also need the username, which might be in the raw token
+    // If not, we can default to the first part of their email
+    const username = req.user.username || email.split('@')[0];
+
+    const user = await prisma.user.upsert({
+      where: { 
+        email: email // Supabase uses UUIDs, so make sure your Prisma schema ID is a String/UUID
+      },
+      update: {
+        // If they already exist, just update their latest info
+        role: role,
+        gender: gender,
+      },
+      create: {
+        username,
+        email,
+        role: role,
+        gender: gender,
+        default_customer_gender: role === 'tailor' ? normalizedGender : null,
+      },
+    });
+
+    res.status(200).json({ message: 'User synced with database successfully', user });
+  } catch (error) {
+    console.error('Prisma Sync Error:', error);
+    res.status(500).json({ error: 'Failed to sync user data' });
+  }
+};
+
 exports.register = async (req, res) => {
   try {
     const { username, email, password, role, gender } = req.body;

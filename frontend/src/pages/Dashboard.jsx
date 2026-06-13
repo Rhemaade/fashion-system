@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import axios from 'axios';
+import axios from '../utils/api';
 import ThreeModel from '../components/ThreeModel';
 import { buildMeasurementProfile } from '../utils/logicMapper';
 import { useAuth } from '../contexts/AuthContext';

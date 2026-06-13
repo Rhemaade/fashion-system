@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import axios from 'axios';
+import axios from '../utils/api';
 import AppHeader from '../components/AppHeader';
 import { useAuth } from '../contexts/AuthContext';
 
