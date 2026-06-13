@@ -247,7 +247,7 @@ function GLBGarment({ outfitConfig, metrics }) {
 function RemoteGLBGarment({ modelUrl }) {
   // Use proxy to avoid CORS
   const proxyUrl = modelUrl.startsWith('http')
-    ? `http://localhost:5000/designs/asset?url=${encodeURIComponent(modelUrl)}`
+    ? `${import.meta.env.VITE_API_URL}/designs/asset?url=${encodeURIComponent(modelUrl)}`
     : modelUrl;
 
   const { scene } = useGLTF(proxyUrl);
