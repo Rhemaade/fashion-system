@@ -66,6 +66,7 @@ exports.syncUser = async (req, res) => {
         gender: gender,
       },
       create: {
+        id: userId,
         username,
         email,
         role: role,
