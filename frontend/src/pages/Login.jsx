@@ -200,6 +200,15 @@ export default function Login() {
             {isRegistering ? 'Sign in' : 'Register'}
           </button>
         </div>
+        {!isRegistering && (
+          <button
+            type="button"
+            onClick={() => navigate('/forgot-password')}
+            className="mt-4 w-full text-center text-sm font-semibold text-[#1f3152] transition hover:text-[#121212]"
+          >
+            Forgot password?
+          </button>
+        )}
       </div>
     </div>
   );

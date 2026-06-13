@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { supabase } from '../utils/supabaseClient';
+import { supabase } from '../utils/superbaseClient';
 import { useNavigate } from 'react-router-dom';
 
 export default function UpdatePassword() {
