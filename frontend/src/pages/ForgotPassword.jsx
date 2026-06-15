@@ -18,7 +18,7 @@ export default function ForgotPassword() {
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         // Change this port to match your frontend (5173 for Vite, 3000 for Next.js)
-        redirectTo: `${import.meta.env.VITE_APP_URL}/update-password`, 
+        redirectTo: 'https://atelier-2d5q.onrender.com/update-password', 
       });
 
       if (error) throw error;
